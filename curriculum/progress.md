@@ -3,12 +3,14 @@
 ## Current Position
 
 **Layer:** 1 — Foundations  
-**Next Lesson:** L1-01 — Networking (TCP, HTTP, WebSockets, Persistent Connections)  
-**Reason:** Foundational gap exposed in session_001 (device-as-server error → need to understand how TCP connections and push delivery actually work)
+**Next Lesson:** L1-02 — Push Delivery: APNs & FCM  
+**Reason:** Directly fixes the session_001 critical gap (device token, persistent OS-level connection, store-and-forward). Builds on L1-01 persistent connection knowledge.
 
 ## Completed Lessons
 
-*(none yet)*
+| Lesson | Topic | Date | File |
+|--------|-------|------|------|
+| L1-01 | Networking: TCP, UDP, HTTP, WebSockets | 2026-04-21 | [L1-01-networking.tex](layer1-foundations/L1-01-networking.tex) |
 
 ## Completed Mock Interviews
 
