@@ -8,13 +8,65 @@ This repository has two modes: **Interviewer Mode** (`/interview`) and **Teacher
 
 Activated via `/learn`. Reads `curriculum/progress.md`, determines the next lesson, teaches it using web research, writes notes to the curriculum files, and updates progress. See `.claude/skills/learn.md` for full behavior.
 
-**Voice UX rule (MANDATORY):** Before every voice explanation, write a text block to chat with:
-- Lesson code and title
-- Key terms (5–10 bullet points with one-line definitions)
-- Critical numbers and data points
-- One mental model sentence
+**Delivery format (MANDATORY):** Lessons are delivered as compiled LaTeX PDFs (`pdflatex`). Do not use voice mode or plain markdown for lesson delivery unless explicitly requested.
 
-This allows the user to read along while listening — they cannot scroll back through voice.
+**Research requirement (MANDATORY):** Before writing any lesson, spawn a research subagent to gather current (≤2 years old) industry data — real numbers, company examples, published blog posts. Embed that data in the lesson. Do not rely on training knowledge alone for statistics.
+
+---
+
+## Curriculum Writing Standard
+
+Every lesson is a self-contained LaTeX PDF. The goal is that Laksh never needs to open a browser or ask a follow-up question while studying. Apply these rules to every lesson, every time.
+
+### Content Philosophy
+
+**Explain WHY before WHAT.** Every concept must begin with the problem it solves, not the definition of the thing. "TCP is..." is wrong. "The internet is fundamentally unreliable; TCP is the layer that solves that" is right.
+
+**Write in narrative prose, not bullets.** Bullet lists are allowed only for comparison tables, numbered steps in a protocol sequence, or critical numbers reference sections. Never use bullets as the primary vehicle for explaining a concept. Write paragraphs.
+
+**Anticipate curiosity.** As you write each section, note every question a thoughtful reader would naturally ask ("but why random sequence numbers?", "what about gRPC?", "is WebRTC the same?"). Address the obvious ones inline as `\thinkbox` callouts. Save the deeper or tangential ones for the Curiosity Corner.
+
+**Use real company data.** Every claim that involves a number must come from a published source (blog post, RFC, conference talk, benchmark). Name the company. Name the year. "A server can handle many connections" is useless; "Discord maintains 12M concurrent WebSocket connections as of 2024" is useful.
+
+**Make errors memorable.** If there's a common interview mistake related to this topic (e.g., device-as-server, using UDP for chat), dedicate a `\trapbox` to it. Name the error precisely, explain why it's wrong, and give the correct answer.
+
+### Mandatory Document Structure
+
+Every lesson LaTeX file must contain these sections in order:
+
+1. **Title page** with: lesson code, full title, subtitle, edition year, data source attribution, and a `\insightbox` explaining why this lesson matters (connect to a past session error where applicable).
+2. **Table of contents** (auto-generated).
+3. **Why This Exists** — the historical or engineering problem that motivated the concept. No definitions yet; just the problem.
+4. **Core concept sections** — narrative prose, subsections for depth. Use `\thinkbox` for embedded curiosity prompts. Use `\industrybox` for real company data with numbers.
+5. **Choosing / Decision Framework** — when to use this vs alternatives. Always include a comparison table.
+6. **Critical Numbers** — a reference table of memorizable numbers with sources.
+7. **System Design Application** — 2–3 concrete examples of how this lesson applies directly to interview questions.
+8. **Curiosity Corner** — a dedicated section (added to ToC) with `\curiobox` entries answering the deeper questions deferred from the main text. Minimum 5 questions.
+9. **Self-Quiz** — 5 questions written as interviewer probes. Separate page. Followed by model answers on the next page.
+10. **What's Next** — `\insightbox` naming the next lesson, why it builds on this one, and the sequence that leads to the first mock interview.
+
+### LaTeX Box Types
+
+Use these consistently; do not invent new ones:
+
+- `\termbox{Title}` — defining a technical concept
+- `\industrybox{Company/Topic}` — real company data, numbers, measurements
+- `\trapbox{Name of Trap}` — common interview mistakes; explain why wrong + correct answer
+- `\thinkbox` — embedded curiosity prompt in the middle of explanation; pose the question then answer it
+- `\curiobox{Question text}` — Curiosity Corner answers; deeper tangential questions
+- `\insightbox` — key mental models, lesson motivation, "what's next" callouts
+- `\quizbox` — self-quiz questions
+- `\answerbox` — model answers (on separate page from quiz)
+
+### Quality Bar
+
+Before compiling, verify:
+- Every section is ≥2 paragraphs of prose. No section is just bullets.
+- Every statistic has a company name and approximate year.
+- The Curiosity Corner has ≥5 entries.
+- The Self-Quiz has exactly 5 questions, each framed as an interviewer probe.
+- `pdflatex` compiles cleanly (no errors, warnings about unknown keys are acceptable from spell-check).
+- The PDF is opened with `open` after compilation so the user sees it immediately.
 
 ---
 
