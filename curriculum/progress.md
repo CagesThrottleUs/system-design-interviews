@@ -23,7 +23,7 @@
 | Gap | Severity | Covered By | Status |
 |-----|----------|------------|--------|
 | APNs/FCM — device is client not server | Critical | L1-02 | ☐ |
-| Persistent TCP connections vs HTTP polling | High | L1-01 | ☐ |
+| Persistent TCP connections vs HTTP polling | High | L1-01 | ✅ |
 | Message queue async pipelines (Kafka/SQS) | High | L1-08 | ☐ |
 | Priority queue separation for notification tiers | Medium | L2-09 | ☐ |
 | Requirements phase discipline (no design in requirements) | Soft skill | Practice | ☐ |
@@ -39,9 +39,16 @@
 - Critical gap: APNs/FCM delivery mechanism
 - Recommended: L1-01 → L1-02 → L1-08 before next mock
 
+## Scheduled Interviews
+
+| Gate | Question | Unlocked | Status |
+|------|----------|----------|--------|
+| — | No interviews unlocked yet. Complete L1-01 + L1-02 + L1-08 to unlock Gate 1 (Notification System retry). | — | — |
+
 ## Lesson Format Preferences
 
-- Written notes published to chat BEFORE voice explanation (key terms + data points)
-- Lessons delivered via voice conversation
-- Full written lesson saved to curriculum file after each session
-- Progress updated after every lesson
+- Lessons delivered as compiled LaTeX PDFs (pdflatex) — opened immediately after compile
+- No voice mode unless explicitly requested
+- Self-quiz with 5 interviewer-probe questions and model answers in every lesson
+- Curiosity Corner with ≥5 deep Q&A entries in every lesson
+- Progress and gap tracking updated automatically after every lesson
