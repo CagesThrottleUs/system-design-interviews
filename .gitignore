@@ -4,3 +4,4 @@ curriculum/*/*.pdf
 curriculum/*/*.out
 curriculum/*/*.aux
 curriculum/*/*.log
+curriculum/*/*.toc
