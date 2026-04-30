@@ -1,0 +1,545 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[top=2.8cm, bottom=2.8cm, left=3cm, right=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=accent,
+            pdftitle={L1-08 Message Queues and Streaming -- System Design Foundations},
+            bookmarks=true]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{array}
+\usepackage{longtable}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{lightbg}{HTML}{F4F6F7}
+\definecolor{quizbg}{HTML}{EBF5FB}
+\definecolor{termbg}{HTML}{EAF2FF}
+\definecolor{curiobg}{HTML}{F5EEF8}
+\definecolor{greenbg}{HTML}{EAFAF1}
+\definecolor{notebg}{HTML}{FDF2E9}
+\definecolor{accentlight}{HTML}{FADBD8}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{highlight}}{\thesection.}{0.6em}{}[\vspace{2pt}\color{highlight!60}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{primary}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\color{primary!80}}{}{0em}{}
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+
+% ── Header/Footer ─────────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{highlight}\textbf{L1-08 --- Message Queues \& Streaming}}
+\fancyhead[R]{\small\color{primary!70}System Design Interview Prep}
+\fancyfoot[C]{\small\color{primary!60}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{highlight!40}\leaders\hrule height \headrulewidth\hfill}}
+
+% ── Box environments ──────────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable, hooks}
+
+\newtcolorbox{termbox}[1]{enhanced,breakable,colback=termbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,title={#1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{industrybox}[1]{enhanced,breakable,colback=greenbg,colframe=highlight!50!black,coltitle=white,fonttitle=\bfseries\small,title={Industry Data: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight!60!black,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{trapbox}[1]{enhanced,colback=accentlight,colframe=accent,coltitle=white,fonttitle=\bfseries\small,title={Interview Trap: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=accent,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{thinkbox}{enhanced,colback=notebg,colframe=accent!60,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=3pt,rightrule=0pt,toprule=0pt,bottomrule=0pt}
+\newtcolorbox{curiobox}[1]{enhanced,breakable,colback=curiobg,colframe=primary!60,coltitle=white,fonttitle=\bfseries\small,title={Q: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!70,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{quizbox}{enhanced,breakable,colback=quizbg,colframe=highlight,coltitle=white,fonttitle=\bfseries,title={Self-Quiz},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{answerbox}{enhanced,breakable,colback=lightbg,colframe=primary!40,coltitle=white,fonttitle=\bfseries\small,title={Model Answers},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!60,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{insightbox}{enhanced,colback=primary!5,colframe=primary,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=4pt,rightrule=0.4pt,toprule=0.4pt,bottomrule=0.4pt}
+
+\setstretch{1.15}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title Page ────────────────────────────────────────────────────────────────
+\thispagestyle{empty}
+\begin{center}
+  \vspace*{2.5cm}
+  {\footnotesize\color{primary!60}\textsc{System Design Interview Prep --- Layer 1: Foundations}}\\[0.6em]
+  {\footnotesize\color{primary!50}Lesson L1-08}\\[2em]
+  {\fontsize{26}{32}\selectfont\bfseries\color{primary} Message Queues \& Streaming}\\[0.8em]
+  {\large\color{highlight} Kafka, SQS, Fan-Out, and the Async Pipeline}\\[0.5em]
+  {\normalsize\color{primary!60}\textit{Gate 1 Final Prerequisite --- Notification System Retry Awaits}}\\[2.5em]
+  \color{highlight!40}\rule{0.6\linewidth}{0.8pt}\\[2em]
+  {\small\color{primary!70}
+    Edition: 2025 \quad|\quad Data sourced from LinkedIn Engineering, Uber Engineering,\\
+    Netflix TechBlog, AWS Architecture Blog, Confluent Blog (2022--2025)
+  }\\[3em]
+\end{center}
+
+\begin{insightbox}
+\textbf{Why this lesson matters --- and why you need it now.}
+
+In your first Notification System mock (session\_001, April 2025), you scored 9/25. The interviewer pushed you on how the API server actually gets a message to an APNs worker without making the user wait --- and you had no answer. You learned APNs and FCM delivery in L1-02. This lesson teaches the infrastructure \textit{in front of} APNs: the async pipeline that decouples your API from your delivery workers, handles traffic spikes, routes one event to many downstream consumers, and survives partial failures without losing a single notification. After this lesson, Gate 1 opens and the Notification System mock retry is available.
+\end{insightbox}
+
+\vfill
+\begin{center}
+  {\small\color{primary!50}\textit{Curriculum: system-design-interviews --- layer1-foundations}}
+\end{center}
+\newpage
+
+% ── Table of Contents ─────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ── Section 1: Why This Exists ───────────────────────────────────────────────
+\section{Why This Exists: The Coupling Problem}
+
+Imagine your notification service the way most engineers first design it: the API server receives a request --- user A likes user B's photo --- and immediately calls an APNs worker, an email worker, and an in-app badge worker in sequence before returning a response. On a slow day, this works. On launch day, when ten million users open the app at once, every service in that chain receives ten million simultaneous requests. The email worker, which might be the slowest, becomes a bottleneck. Users wait. The APNs call times out after 30 seconds. The API server retries. Now the email worker has twenty million requests. It crashes. The API server starts returning errors. Users cannot even perform actions because sending a notification --- a side effect --- is blocking the primary operation.
+
+This failure mode has a name: \textit{tight coupling}. When service A calls service B directly and synchronously, the performance and availability of A are permanently bound to the performance and availability of B. You have taken two independent problems --- processing a user action and delivering a notification --- and forced them to share fate. If the notification delivery system is slow, user actions feel slow. If the notification delivery system crashes, user actions fail, even though user data was saved successfully.
+
+The broader problem is even more fundamental: direct service-to-service calls do not absorb traffic spikes. If you get ten times more events than usual, every downstream service gets ten times more requests simultaneously. There is no buffer. There is no way to say ``process these as fast as you can, but no faster.'' The system has no elasticity at the seams between services.
+
+\begin{thinkbox}
+\textbf{But wait} --- why not just use threads or async/await in the API server to make those calls non-blocking? The issue is not the threading model; it is resource exhaustion. Even with non-blocking I/O, the API server still holds an open connection to each downstream service for each in-flight request. At ten million concurrent events, you exhaust file descriptors, memory, and connection pool limits. The fundamental problem is that callers and callees are still directly connected, just asynchronously. You need a \textit{buffer} between them --- something that can accept messages at one rate and release them to workers at a different rate.
+\end{thinkbox}
+
+Message queues solve the coupling problem by introducing an intermediary: the queue. Producers --- the services that generate events --- write messages into the queue without knowing or caring who will process them, or when. Consumers --- the workers that do the actual processing --- pull from the queue at whatever rate they can sustain. The queue absorbs the difference. During a spike, messages pile up briefly in the queue but are processed in order as capacity allows. During a quiet period, the queue drains. Neither the producer nor the consumer needs to know anything about the other's existence, scale, or internal state.
+
+This is the insight that makes message queues one of the most fundamental building blocks in distributed systems. They are not a performance optimization. They are an architectural choice that transforms tight coupling into loose coupling --- changing the blast radius of failures, enabling independent scaling, and making the system composable in ways that synchronous calls never can.
+
+% ── Section 2: The Producer-Consumer Model ────────────────────────────────────
+\section{The Producer-Consumer Model}
+
+The producer-consumer model is the conceptual foundation for every message queue system you will ever encounter. A \textit{producer} is any process that generates work --- a web server handling a user action, a sensor emitting readings, a cron job that scans for stale data. A \textit{consumer} is any process that performs work --- a worker that sends an email, a function that updates a search index, a service that charges a credit card. The \textit{queue} sits between them.
+
+\begin{termbox}{Producer-Consumer Decoupling}
+\textbf{Producer:} Generates events and writes them to the queue. It does not know how many consumers exist, what they do, or whether they are running at all. Its job ends when the message is acknowledged by the queue.
+
+\textbf{Queue / Broker:} Stores messages durably (usually on disk), manages routing, handles consumer failures and retries, and guarantees delivery semantics. It is the reliability contract between producers and consumers.
+
+\textbf{Consumer:} Pulls messages from the queue (or receives pushed messages), processes them, and acknowledges completion. If it fails mid-processing, the queue can re-deliver to another consumer.
+\end{termbox}
+
+The key consequence of this model is that producers and consumers can scale independently. If notification volume triples, you add more consumer instances reading from the queue; you do not need to change the producers at all. If a consumer crashes and restarts, it picks up exactly where it left off; no events are lost because the queue held them. If you need to add a new consumer --- say, a new analytics pipeline that should also receive every user event --- you add it to the queue without touching the producers.
+
+\begin{thinkbox}
+\textbf{Does the queue always store messages on disk?} Not always --- Redis queues store messages in memory by default, trading durability for speed. But for systems where losing a message is unacceptable (financial transactions, notifications, order events), disk-backed durability is essential. Kafka, for example, writes every message to disk before acknowledging the producer --- which is why it can survive broker restarts without data loss.
+\end{thinkbox}
+
+There are two broad patterns for getting messages from a queue to consumers: \textit{pull} (the consumer polls the queue) and \textit{push} (the queue delivers to the consumer via webhook or long-poll). Kafka uses pull: consumers maintain a connection to the broker and request batches of messages. SQS supports both but defaults to pull. The trade-off is that pull gives consumers complete control over their ingestion rate --- a slow consumer simply polls less frequently without affecting the broker or other consumers --- while push can deliver lower latency at the cost of overwhelming a slow consumer if rate limiting is not carefully configured.
+
+% ── Section 3: Apache Kafka ───────────────────────────────────────────────────
+\section{Apache Kafka: Distributed Event Log}
+
+\subsection{Origin and Mental Model}
+
+Kafka was not designed as a message queue. It was built at LinkedIn in 2011 to solve a specific problem: LinkedIn had dozens of different systems that all needed access to user activity data --- newsfeed, recommendations, analytics, ad targeting, search indexing --- and every time a new system was added, engineers had to build a custom data pipeline from the source system to the new destination. The number of pipelines grew quadratically with the number of systems. Kafka was designed as a universal data backbone: every system would produce to Kafka, and every system that needed data would consume from Kafka. Instead of N-squared pipelines, you have N producers and M consumers, all meeting in the middle.
+
+\begin{industrybox}{LinkedIn --- Kafka's Origin, 2011--2024}
+LinkedIn open-sourced Kafka in 2011. By 2019, LinkedIn's Kafka clusters were processing over 7 trillion messages per day across more than 100 clusters. As of 2023, LinkedIn reported over 7 million messages per second throughput on a single large cluster. The system handles activity streams, metrics, logging, and real-time analytics simultaneously on the same infrastructure.
+\end{industrybox}
+
+The mental model for Kafka is fundamentally different from a traditional queue. A traditional queue is like a line at a grocery store: messages enter, get consumed, and are gone. Kafka is like a \textit{log file that multiple readers can read at different positions simultaneously}. Messages are written to the end of the log. Readers maintain their own bookmark (called an offset) and read from wherever they left off. The log itself is retained for a configurable period --- days or weeks --- regardless of whether anyone has read it. This model makes Kafka dramatically more powerful than a traditional queue, but also more complex to reason about.
+
+\subsection{Topics and Partitions}
+
+\begin{termbox}{Topic}
+A \textbf{topic} is a named category of messages. Every message in Kafka is published to a topic. Topics are the logical grouping --- \texttt{user-events}, \texttt{order-created}, \texttt{notification-requests} are all topics. Consumers subscribe to topics, not to individual producers.
+\end{termbox}
+
+\begin{termbox}{Partition}
+A \textbf{partition} is the physical unit of parallelism in Kafka. Each topic is divided into one or more partitions. Messages within a single partition are strictly ordered by arrival time. Messages across different partitions have no ordering guarantee relative to each other. Partitions are stored on disk, replicated across brokers for fault tolerance, and are the unit at which Kafka achieves horizontal scalability.
+\end{termbox}
+
+When a producer sends a message, it can specify a partition key. Kafka hashes the key to determine which partition the message goes to. This is critical: all messages with the same key always land in the same partition, which means they are always consumed in order. For a notification system, you might use the \texttt{user\_id} as the partition key --- this guarantees that all notifications for a given user are processed in order, which matters when you need to avoid race conditions on badge counts or message ordering in a chat thread.
+
+The number of partitions determines the maximum parallelism for that topic. If you have 12 partitions, at most 12 consumers can read from that topic in parallel within a single consumer group. Adding more consumers beyond the number of partitions provides no additional throughput --- the extra consumers sit idle. This is a critical capacity-planning fact for interview questions.
+
+\begin{thinkbox}
+\textbf{How many partitions should you use?} LinkedIn's rule of thumb (published in their 2020 engineering blog) is to start with a target throughput divided by the per-partition throughput. A single partition on a modern broker can handle roughly 10--50 MB/s of writes. For a notification system processing 100,000 events/second at 1 KB each (100 MB/s), you would want at least 3--10 partitions. Most teams over-provision --- 12 or 24 partitions is common --- because re-partitioning later requires recreating the topic.
+\end{thinkbox}
+
+\subsection{Consumer Groups and Offset Management}
+
+A \textit{consumer group} is a set of consumers that collectively read from a topic, each consumer reading from a disjoint subset of partitions. Within a consumer group, each partition is assigned to exactly one consumer. This is how Kafka achieves parallel consumption: if you have 6 partitions and 3 consumers in a group, each consumer reads from 2 partitions.
+
+\begin{termbox}{Offset}
+An \textbf{offset} is a monotonically increasing integer that uniquely identifies a message within a partition. It is the consumer's bookmark. When a consumer processes a message successfully, it \textit{commits} the offset to Kafka (or to an external store), recording that it has processed everything up to that point. If the consumer crashes and restarts, it resumes from the last committed offset --- not from the beginning of the log.
+\end{termbox}
+
+The offset model is what makes Kafka's delivery semantics so flexible. Whether you get at-most-once, at-least-once, or exactly-once delivery depends entirely on \textit{when} you commit the offset relative to when you process the message:
+
+\begin{itemize}[leftmargin=1.5em, itemsep=3pt]
+  \item \textbf{At-most-once:} Commit the offset before processing. If processing fails, the message is lost --- but you never process a message twice.
+  \item \textbf{At-least-once:} Process first, then commit. If the consumer crashes after processing but before committing, the message is re-delivered. You may process duplicates.
+  \item \textbf{Exactly-once:} Use Kafka transactions and idempotent producers. The most expensive option, requiring coordination between producer and consumer.
+\end{itemize}
+
+Multiple independent consumer groups can read the same topic simultaneously, each maintaining their own offset. This is Kafka's killer feature for fan-out: publish one event, and ten different consumer groups --- analytics, notifications, recommendations, billing, search indexing --- all receive it independently, at their own pace, with their own retry logic, without any awareness of each other.
+
+\subsection{Retention and Log Compaction}
+
+Unlike a traditional queue, Kafka does not delete messages when they are consumed. Messages are retained on disk for a configurable period --- Uber Engineering's blog from 2024 describes their default retention as 7 days for most topics, with some audit topics retaining 30 days. This means that if you deploy a new consumer group (say, a new analytics service), it can replay all messages from the past week to backfill its state. It also means debugging is radically simpler: you can replay any event window to understand what happened in production.
+
+\begin{industrybox}{Uber Engineering --- Kafka at Scale, 2023--2024}
+Uber's 2023 engineering blog post on their ``Kafka-as-a-Service'' platform described managing over 4,000 Kafka topics across multiple data centers, processing approximately 1 trillion messages per day at peak. Their notification system alone uses Kafka to fan out trip event messages (driver assigned, driver arriving, trip started, trip ended) to push notification workers, SMS workers, email workers, and in-app update workers simultaneously. Uber reported that the async pipeline absorbs surge spikes of up to 5x normal traffic without any changes to upstream API servers.
+\end{industrybox}
+
+Log \textit{compaction} is a special Kafka retention mode where Kafka keeps only the \textit{latest} message for each key, instead of retaining all messages by time. This is useful for topics that represent current state rather than an event stream: a topic keyed by \texttt{user\_id} with profile updates would be compacted to retain only the latest profile for each user, making it usable as a source of truth for ``what does each user's profile look like right now?''
+
+% ── Section 4: AWS SQS ────────────────────────────────────────────────────────
+\section{AWS SQS: The Managed Queue}
+
+SQS (Simple Queue Service) is Amazon's fully managed message queue, launched in 2006 as one of AWS's first services. Where Kafka is an event log designed for high-throughput streaming with replay capability, SQS is a traditional queue: messages are delivered once (conceptually), then deleted. SQS is simpler to operate, integrates seamlessly with AWS Lambda and other managed services, and is the right choice for many use cases that do not require Kafka's power.
+
+\subsection{Visibility Timeout}
+
+The most important SQS concept for an interview is the \textit{visibility timeout}. When a consumer reads a message from SQS, the message is not immediately deleted. Instead, it becomes invisible to other consumers for a configurable duration (the visibility timeout, default 30 seconds). If the consumer processes the message successfully and calls \texttt{DeleteMessage}, the message is removed permanently. If the consumer crashes or fails to call \texttt{DeleteMessage} before the visibility timeout expires, the message becomes visible again and is re-delivered to another consumer.
+
+\begin{termbox}{Visibility Timeout}
+The \textbf{visibility timeout} is SQS's mechanism for at-least-once delivery. It gives a consumer a window of time to process a message while preventing other consumers from processing the same message in parallel. If processing takes longer than the timeout, the message is re-delivered even if the first consumer is still working on it --- causing a duplicate. Always set the visibility timeout to comfortably exceed your maximum processing time.
+\end{termbox}
+
+\begin{trapbox}{Visibility Timeout Too Short}
+A classic production failure: engineers set the SQS visibility timeout to 30 seconds, but a message occasionally triggers a slow database query that takes 45 seconds. The queue re-delivers the message while the first consumer is still processing it. Now two consumers are processing the same event simultaneously --- maybe charging a customer twice, or sending two push notifications. \textbf{The fix:} set the visibility timeout to at least 3--5x your P99 processing time. Use the \texttt{ChangeMessageVisibility} API to extend it dynamically if processing is taking longer than expected.
+\end{trapbox}
+
+\subsection{Dead Letter Queues (DLQ)}
+
+What happens when a message consistently fails processing? Without a DLQ, a poisoned message --- one that causes a consumer to crash repeatedly --- will cycle in the queue forever, consuming consumer capacity and blocking other messages in some queue configurations. A Dead Letter Queue is a separate queue to which SQS automatically moves messages that have exceeded a \textit{maxReceiveCount} threshold. Once a message is delivered and returned to the queue more than (say) 5 times, it is moved to the DLQ, where engineers can inspect it, determine the root cause, and decide whether to replay or discard it.
+
+\begin{industrybox}{DLQs in Production --- Stripe, 2022}
+Stripe's 2022 engineering blog post on their payment processing infrastructure described their DLQ monitoring as a critical on-call signal. A spike in DLQ depth --- messages piling up in the dead letter queue --- is often the first indicator of a downstream service failure, a schema change that broke message parsing, or a dependency that has started returning errors. They instrument DLQ depth as a primary alerting metric, targeting a DLQ depth of zero under normal conditions.
+\end{industrybox}
+
+SQS also offers \textit{FIFO queues} that guarantee exactly-once processing and strict ordering, at the cost of reduced throughput (approximately 300 messages/second versus SQS Standard's effectively unlimited throughput). FIFO queues are appropriate for financial transactions or sequential state machines where ordering is critical. For most notification systems, SQS Standard is sufficient --- notifications are idempotent by design (receiving a push notification twice is annoying but not catastrophic), and throughput matters more than strict ordering.
+
+% ── Section 5: Delivery Semantics ────────────────────────────────────────────
+\section{Delivery Semantics: The Reliability Contract}
+
+Every messaging system makes a promise about how reliably it will deliver messages. Understanding these promises --- and their costs --- is one of the most important topics in distributed systems interviews.
+
+\subsection{At-Most-Once}
+
+At-most-once delivery means a message is delivered zero or one times. If delivery fails, there is no retry. This is the cheapest and fastest option --- the producer sends and forgets. It is appropriate only when losing messages is acceptable: metrics sampling, best-effort analytics, status heartbeats. It is never appropriate for financial transactions, notifications that users depend on, or any system where a lost message has a meaningful consequence.
+
+\subsection{At-Least-Once}
+
+At-least-once delivery means a message is delivered one or more times. The system retries until it receives an acknowledgment. The consumer may therefore process the same message multiple times, particularly after crashes or network partitions. This is the default in both Kafka and SQS Standard, and it is the right default for most systems.
+
+The key implication of at-least-once delivery is that your consumers must be \textit{idempotent}: processing the same message twice must produce the same result as processing it once. For notification systems, idempotency might mean checking a database before sending --- ``have I already sent a push notification for \texttt{event\_id=abc123}?'' --- and skipping if so. This idempotency check is often called a \textit{deduplication table} or \textit{seen set}.
+
+\begin{thinkbox}
+\textbf{Idempotency in the notification retry}: When you go into the Gate 1 mock and the interviewer asks ``what if the push notification worker crashes mid-send?'' --- your answer is idempotency. The Kafka offset is not committed until the APNs call succeeds. On restart, the worker re-reads the same message and re-attempts the APNs send. APNs itself is idempotent for push notifications: if you include the \texttt{apns-collapse-id} header, APNs will collapse duplicate notifications rather than delivering two. The pipeline is end-to-end resilient because each layer handles retries and deduplication.
+\end{thinkbox}
+
+\subsection{Exactly-Once}
+
+Exactly-once delivery means a message is processed exactly one time, even in the presence of crashes, retries, and network failures. It is the most expensive and complex guarantee to achieve. Kafka added exactly-once semantics (EOS) in version 0.11 (2017) via two mechanisms: \textit{idempotent producers} (each message is assigned a sequence number; the broker deduplicates retried sends) and \textit{transactions} (a producer can atomically write to multiple partitions, and consumers can be configured to only read committed transactions).
+
+\begin{industrybox}{Kafka Exactly-Once --- Confluent Benchmarks, 2023}
+Confluent's 2023 benchmark report measured the throughput overhead of exactly-once semantics at approximately 10--20\% compared to at-least-once, with higher latency due to transaction coordination. For most use cases, the complexity cost of exactly-once is not worth it --- well-designed idempotent consumers with at-least-once delivery achieve equivalent correctness. Exactly-once is appropriate for financial ledgers, inventory management, and cases where downstream idempotency is impractical to implement.
+\end{industrybox}
+
+% ── Section 6: Backpressure ────────────────────────────────────────────────────
+\section{Backpressure: When Consumers Cannot Keep Up}
+
+Backpressure is what happens when producers generate messages faster than consumers can process them. In a synchronous system, this causes timeouts, connection pool exhaustion, and cascading failures. In a message queue system, it causes the queue depth to grow.
+
+The queue acts as a shock absorber: instead of failing immediately, producers keep writing, and the queue fills. If the spike is temporary --- Super Bowl halftime, a flash sale --- the queue drains as the spike passes. But if the imbalance is sustained --- you launched a new feature that tripled notification volume permanently --- you need to either add more consumers or reduce the message rate. The queue buying you time is the feature; letting it grow indefinitely without monitoring is the failure mode.
+
+The correct operational response to backpressure is: monitor queue depth as a primary metric, set alarms when queue depth crosses thresholds (SQS: \texttt{ApproximateNumberOfMessagesVisible}; Kafka: consumer group lag), and autoscale consumers based on queue depth. AWS Auto Scaling integrated with SQS queue depth metrics, and Kubernetes Horizontal Pod Autoscaler integrated with Kafka consumer lag metrics (via KEDA, the Kubernetes Event-Driven Autoscaler), are both standard production patterns as of 2024.
+
+\begin{trapbox}{Queue Depth as a Vanity Metric}
+Engineers often monitor queue depth without acting on it. They see the queue at 50,000 messages and think ``it's fine, we're processing them.'' The correct question is: \textit{at what rate is the queue depth changing?} If depth is growing by 1,000 messages/minute, you will be 1 million messages behind in under 17 hours. Queue depth alone is not actionable; queue depth \textit{trend} (rate of change) and consumer lag (how old is the oldest unprocessed message?) are the actionable metrics.
+\end{trapbox}
+
+% ── Section 7: Fan-Out Pattern ───────────────────────────────────────────────
+\section{Fan-Out: One Event, Many Consumers}
+
+Fan-out is the pattern where a single event is consumed by multiple independent consumers, each doing something different with it. This is architecturally critical for notification systems and is the pattern you were missing in the session\_001 mock interview.
+
+\subsection{The Notification Pipeline Fan-Out}
+
+Consider the event: ``User A liked User B's photo.'' In a notification system, this single event must trigger multiple actions:
+
+\begin{itemize}[leftmargin=1.5em, itemsep=3pt]
+  \item Send a push notification to User B's device via APNs or FCM
+  \item Increment User B's unread notification badge count in the database
+  \item Write an in-app notification entry to the notifications table
+  \item If User B has email notifications enabled, queue an email digest entry
+  \item Update the activity feed for User B's followers (in a social product)
+  \item Log the event to the analytics pipeline
+\end{itemize}
+
+In a synchronous design, the API server must call each of these services in sequence (or parallel), and the user action is only complete when all of them succeed. A failure in the email service blocks the push notification. A slow analytics write increases response latency. This is the design that fails at scale.
+
+The fan-out design is fundamentally different. The API server writes exactly \textit{one} message to Kafka: \texttt{\{event: "like", actor: userA, target: userB, photo\_id: 123, timestamp: ...\}}. The API call returns immediately. Kafka then delivers this message to multiple independent consumer groups:
+
+\begin{itemize}[leftmargin=1.5em, itemsep=3pt]
+  \item \textbf{push-notification-worker group:} Reads the event, looks up User B's APNs/FCM token, calls the APNs API, commits offset on success.
+  \item \textbf{in-app-notification-worker group:} Reads the event, writes a row to the \texttt{notifications} table, commits offset.
+  \item \textbf{email-digest-worker group:} Reads the event, writes to a pending email queue (or batches hourly), commits offset.
+  \item \textbf{analytics-worker group:} Reads the event, writes to the data warehouse pipeline, commits offset.
+\end{itemize}
+
+Each consumer group is independent. The push notification worker can be scaled to 100 instances. The analytics worker can be a single instance. If the email service goes down, email notifications queue up and catch up when it recovers --- without affecting push notifications at all. The API server never knew any of these consumers exist.
+
+\begin{industrybox}{Meta (Facebook) --- Notification Fan-Out at Scale, 2023}
+Meta's 2023 engineering blog on their notification infrastructure described processing over 2 billion push notifications per day across iOS and Android. Their architecture uses a tiered Kafka pipeline: a single ``notification event'' topic receives events from hundreds of upstream services; a set of ``notification prioritization'' consumers fan out to priority-specific topics (urgent, normal, batch); priority-specific APNs/FCM workers consume from those topics. The fan-out happens at multiple layers, with the outer layer handling routing and the inner layer handling delivery. This tiered approach lets them apply rate limiting, user preference filtering, and quiet-hours logic at the fan-out layer rather than baking it into every upstream service.
+\end{industrybox}
+
+\subsection{SQS Fan-Out via SNS}
+
+In AWS, fan-out is typically implemented with SNS (Simple Notification Service) as a pub-sub intermediary. A producer publishes to an SNS topic. SNS delivers the message to multiple SQS queues (one per consumer type). Each consumer reads from its own SQS queue. This SNS-to-SQS fan-out pattern is the standard AWS architecture for notification systems and is explicitly documented in AWS's architecture best practices as of 2024.
+
+\begin{thinkbox}
+\textbf{Kafka fan-out vs. SNS fan-out: when does each win?} SNS-to-SQS fan-out is simpler to set up and cheaper at low volumes --- no Kafka cluster to manage. Kafka fan-out wins when you need replay (``replay all events from the last 7 days to backfill a new consumer''), very high throughput (millions of events/second), or stream processing (real-time aggregation, windowing, joins across event streams). For most notification systems below 100,000 events/second, SNS-to-SQS is operationally simpler. Above that scale, or if you need replay, Kafka is the right choice.
+\end{thinkbox}
+
+% ── Section 8: Stream Processing ─────────────────────────────────────────────
+\section{Stream Processing: Real-Time Computation on Events}
+
+Message queues deliver events from A to B. Stream processing frameworks go further: they let you compute over those events in real time --- aggregating, filtering, joining, windowing --- as they flow through the system. This is the difference between ``deliver this notification'' and ``compute that this user has sent more than 5 messages in the last 10 seconds and should be rate-limited.''
+
+The three most widely deployed stream processing systems in 2024 are Apache Flink, Apache Kafka Streams, and Apache Spark Streaming.
+
+\begin{termbox}{Kafka Streams}
+\textbf{Kafka Streams} is a client library (not a separate cluster) that lets you write stream processing applications that read from and write to Kafka topics. Because it runs inside your application process, there is no additional infrastructure to manage. It supports stateful operations (counts, joins, windowed aggregations) using local RocksDB storage. Appropriate for: moderate complexity, when you want to avoid managing a separate Flink cluster.
+\end{termbox}
+
+\begin{termbox}{Apache Flink}
+\textbf{Flink} is a separate cluster that provides the most powerful stream processing semantics available, including event-time processing (handling out-of-order events correctly), complex windowing, exactly-once state, and joins across multiple streams. Netflix's 2024 engineering blog describes using Flink for real-time recommendation scoring and anomaly detection. Appropriate for: high complexity, high throughput, or when you need event-time semantics.
+\end{termbox}
+
+For most system design interviews, the distinction that matters is: message queues (Kafka, SQS) handle delivery; stream processing (Flink, Kafka Streams) handles computation. When an interviewer asks ``how would you detect fraudulent transactions in real time?'' --- that requires stream processing. When they ask ``how does the API server hand off work to notification workers?'' --- that requires a message queue.
+
+% ── Section 9: Decision Framework ────────────────────────────────────────────
+\section{Decision Framework: Choosing the Right Tool}
+
+\subsection{Kafka vs SQS vs RabbitMQ vs Redis Streams}
+
+The following comparison focuses on the dimensions that actually matter in a system design interview.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{>{\bfseries\small}p{3cm} X X X X}
+  \toprule
+  \small\textbf{Dimension} & \small\textbf{Apache Kafka} & \small\textbf{AWS SQS} & \small\textbf{RabbitMQ} & \small\textbf{Redis Streams} \\
+  \midrule
+  Throughput & Millions msg/sec & Unlimited (standard) & Tens of thousands/sec & Hundreds of thousands/sec \\
+  \addlinespace
+  Ordering & Per-partition & FIFO queue only & Per-queue (best effort) & Per-stream \\
+  \addlinespace
+  Retention & Days to weeks (configurable) & 4 min -- 14 days & Until consumed & Configurable; memory-bound \\
+  \addlinespace
+  Replay & Yes (by offset) & No & No & Yes (by ID) \\
+  \addlinespace
+  Fan-out & Native (consumer groups) & Via SNS + multiple queues & Via exchanges/routing keys & Consumer groups (v5+) \\
+  \addlinespace
+  Delivery guarantee & At-least-once; exactly-once available & At-least-once (Standard); exactly-once (FIFO) & At-least-once & At-least-once \\
+  \addlinespace
+  Operational complexity & High (clusters, ZooKeeper/KRaft) & None (fully managed) & Medium (nodes, bindings) & Low (Redis already deployed) \\
+  \addlinespace
+  Managed cloud option & Confluent Cloud, MSK, Aiven & SQS is fully managed & CloudAMQP, Amazon MQ & Redis Cloud, ElastiCache \\
+  \addlinespace
+  Best for & High-throughput event streaming, replay, analytics pipelines & Simple async decoupling in AWS, Lambda integration & Complex routing, legacy systems & Low-latency queuing when Redis is already in use \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{The Decision Heuristic}
+
+When a system design interviewer asks ``what messaging system would you use?'' --- your answer should follow this logic:
+
+If you need \textbf{replay capability} (new consumers need to backfill, audit requirements, ML model retraining): Kafka.
+
+If you need \textbf{high-throughput fan-out} (one event, many independent consumers, at millions per second): Kafka consumer groups.
+
+If you are \textbf{on AWS} and need simple, reliable async decoupling without operational overhead, below 1 million events/second: SQS Standard (with SNS for fan-out).
+
+If you need \textbf{complex routing logic} (route to different queues based on message content, priority levels, dead-lettering with routing rules): RabbitMQ.
+
+If you need \textbf{low-latency queuing} and already have Redis deployed with small message volumes: Redis Streams.
+
+If the interviewer pushes you on cost: SQS is pay-per-message (roughly \$0.40/million requests as of 2024); Kafka requires dedicated cluster costs but is far cheaper per message at high volume.
+
+% ── Section 10: Critical Numbers ─────────────────────────────────────────────
+\section{Critical Numbers Reference}
+
+Memorize these for interviews. Sources: LinkedIn Engineering, Confluent, AWS documentation, Uber Engineering (2022--2024).
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabularx}{\textwidth}{>{\bfseries\small}p{5.5cm} >{\small}p{3.5cm} >{\small\itshape}X}
+  \toprule
+  \small\textbf{Metric} & \small\textbf{Value} & \small\textbf{Source / Year} \\
+  \midrule
+  Kafka single partition throughput & 10--50 MB/s write & Confluent docs, 2023 \\
+  Kafka single broker throughput & 100--200 MB/s sustained & LinkedIn Eng, 2022 \\
+  LinkedIn Kafka peak throughput & 7 million msg/sec & LinkedIn Eng, 2023 \\
+  Uber Kafka daily volume & $\sim$1 trillion messages/day & Uber Eng, 2023 \\
+  Kafka default retention & 7 days (configurable) & Apache Kafka defaults \\
+  Kafka max message size (default) & 1 MB & Apache Kafka config \\
+  SQS message size limit & 256 KB & AWS docs, 2024 \\
+  SQS Standard max throughput & Effectively unlimited & AWS docs, 2024 \\
+  SQS FIFO max throughput & 300 msg/sec (3,000 w/ batching) & AWS docs, 2024 \\
+  SQS default visibility timeout & 30 seconds & AWS docs \\
+  SQS max retention & 14 days & AWS docs \\
+  SQS pricing & \$0.40 / million requests & AWS pricing, 2024 \\
+  Meta push notifications per day & $>$2 billion & Meta Eng blog, 2023 \\
+  Kafka end-to-end latency (p99) & $<$10 ms (single datacenter) & Confluent benchmark, 2023 \\
+  Exactly-once overhead vs at-least-once & 10--20\% throughput penalty & Confluent, 2023 \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+% ── Section 11: System Design Application ────────────────────────────────────
+\section{System Design Application}
+
+\subsection{Primary Example: Notification Pipeline Fan-Out}
+
+This is directly relevant to the Gate 1 mock interview (Notification System retry). When the interviewer asks you to design a notification system for 100 million users, here is how L1-08 shapes your architecture.
+
+\textbf{The setup:} The interviewer tells you the system must deliver push notifications, emails, and in-app notifications when users perform actions. Peak load is 500,000 notification events per second. You need to support future notification types without redeploying the pipeline.
+
+\textbf{Your design:} The API server, upon processing a user action, writes one event to a Kafka topic named \texttt{notification-events}, partitioned by \texttt{target\_user\_id}. This is a fire-and-forget write from the API server's perspective --- it does not wait for delivery, does not know about APNs, and does not call any notification service directly.
+
+The Kafka topic has 24 partitions (supporting up to 24 parallel consumers per group). Three independent consumer groups read this topic:
+
+\textbf{Group 1: push-notification-workers.} These workers look up the user's device tokens from a cache, resolve APNs vs FCM based on device platform, call the appropriate delivery API, and write a delivery receipt to a \texttt{notification-receipts} Kafka topic. They commit the offset only after a successful APNs/FCM acknowledgment. On failure, the offset is not committed, and the message is re-tried --- each worker implements a deduplication check using the \texttt{event\_id} against a Redis set with a 24-hour TTL.
+
+\textbf{Group 2: in-app-notification-workers.} These workers write a row to the PostgreSQL \texttt{notifications} table, increment the user's unread count in Redis, and, if the user has an open WebSocket connection (checked against the connection registry from L1-01), push an immediate in-app badge update.
+
+\textbf{Group 3: email-digest-workers.} These workers append the event to a per-user email buffer in Redis. A separate cron job every 15 minutes drains the buffers for users who have email notifications enabled and have not received an email in the last hour, batching multiple events into a single digest email to avoid spamming.
+
+When the interviewer asks ``what if we want to add SMS notifications?'' --- you add consumer group 4. No changes to the API server, no changes to Kafka, no changes to the other three consumer groups. The pipeline is open for extension.
+
+\textbf{The answer to your session\_001 failure:} The question you could not answer was ``how does the API server hand work to notification workers without blocking?'' The answer is: Kafka. The API server produces one message. Kafka fans it out to all consumer groups. The API server's job is done in under 1 millisecond.
+
+\subsection{Example 2: Order Processing Pipeline}
+
+An e-commerce platform processes 10,000 orders per minute at peak. Each order triggers inventory reservation, payment charging, shipping label generation, and a confirmation email. These operations have very different latencies (payment: 200--500ms; shipping: 2--5 seconds; email: variable) and very different failure modes.
+
+Using Kafka: the checkout service writes one \texttt{order-created} event. Four consumer groups handle inventory, payment, shipping, and email independently. Payment failures are handled by the payment consumer group, which writes a \texttt{payment-failed} event, triggering a compensation consumer that cancels the inventory reservation. This is the \textit{saga pattern}, enabled by Kafka's fan-out and ordered-per-partition guarantees. Without Kafka, implementing this saga requires synchronous distributed transactions --- much harder to scale and recover from.
+
+\subsection{Example 3: Real-Time Fraud Detection}
+
+A payments company processes 50,000 transactions per second. They need to flag transactions as potentially fraudulent within 100 milliseconds. This requires real-time computation over a sliding window: ``has this card made more than 10 transactions in the last 60 seconds?''
+
+The transaction events flow into Kafka. A Kafka Streams application reads them, maintains a per-card counter using a 60-second tumbling window backed by RocksDB, and emits a \texttt{fraud-score} event for any card exceeding the threshold. The downstream fraud service reads the \texttt{fraud-score} topic and blocks or flags the transaction. The key architectural decision is that the fraud scoring happens inline, in the stream processing layer, before the transaction is committed --- not as an asynchronous notification after the fact.
+
+% ── Section 12: Curiosity Corner ─────────────────────────────────────────────
+\section{Curiosity Corner}
+\addcontentsline{toc}{section}{Curiosity Corner}
+
+\begin{curiobox}{Why does Kafka use disk instead of memory? Isn't disk slower?}
+Kafka's use of disk is actually one of its performance advantages, not a limitation. Modern operating systems maintain a page cache --- a region of RAM used to cache recently accessed disk pages. Kafka is designed to exploit this: it writes messages sequentially to disk (sequential I/O is much faster than random I/O, approaching memory bandwidth on NVMe drives), and consumers typically read messages that were recently written, which are still in the OS page cache --- so they are reading from RAM, not spinning rust. The disk provides durability and the ability to retain data beyond what fits in RAM, while the page cache provides the speed. Kafka's founder Jay Kreps described this architecture in the original LinkedIn engineering post (2011): ``rather than maintain as much in-memory as possible and flush to disk when the memory runs out, we invert that: we write to disk as fast as possible and rely on the page cache to absorb the reads.''
+\end{curiobox}
+
+\begin{curiobox}{What is Kafka's KRaft mode and why does it matter?}
+Historically, Kafka required Apache ZooKeeper --- a separate distributed coordination service --- to manage cluster metadata: which brokers are alive, which broker is the leader for each partition, consumer group assignments. Running ZooKeeper added operational complexity, a separate failure domain, and a scaling bottleneck (ZooKeeper had limited write throughput). KRaft (Kafka Raft Metadata) mode, introduced as production-ready in Kafka 3.3 (2022) and the default in Kafka 3.7 (2024), removes ZooKeeper entirely. Kafka now manages its own cluster metadata using the Raft consensus algorithm, stored in an internal metadata topic. This simplifies deployment dramatically --- one fewer system to operate, faster controller failover (from 30--60 seconds to under 1 second), and support for clusters with millions of partitions. For interviews, the key fact is: Kafka no longer requires ZooKeeper in modern deployments.
+\end{curiobox}
+
+\begin{curiobox}{What exactly is a Kafka consumer group rebalance, and why does it matter?}
+When a consumer joins or leaves a consumer group --- because you scaled up or down, or a consumer crashed --- Kafka must reassign partitions among the remaining consumers. This reassignment is called a \textit{rebalance}. During a rebalance, all consumers in the group stop consuming messages while Kafka redistributes partition assignments. In older Kafka versions, rebalances were ``stop the world'' events that could pause consumption for several seconds. This caused noticeable notification delivery delays. Kafka 2.4 introduced \textit{incremental cooperative rebalancing}, which allows consumers to keep their existing partition assignments while only the newly added partitions are reassigned --- dramatically reducing the pause. For a notification system with a high-priority consumer group, configuring the partition assignor as \texttt{CooperativeStickyAssignor} is a best practice that reduces rebalance impact.
+\end{curiobox}
+
+\begin{curiobox}{How does Confluent's managed Kafka differ from running Kafka yourself?}
+Self-managed Kafka requires operating brokers (typically 3--9 nodes for fault tolerance), configuring replication factors, managing disk capacity, monitoring consumer lag, handling broker failures, and upgrading versions without downtime. Confluent Cloud (and AWS MSK --- Managed Streaming for Kafka) handle all of this. Confluent Cloud as of 2024 offers a serverless Kafka tier where you pay per consumed CKU (Confluent Kafka Unit) rather than per broker --- you do not provision cluster capacity at all. AWS MSK offers a similar model (MSK Serverless). The trade-off is cost: at very high volume (Uber's scale), self-managed Kafka on owned hardware is orders of magnitude cheaper than managed services. At startup scale (below a few billion messages/month), managed services eliminate the operational burden that makes self-managed Kafka complex.
+\end{curiobox}
+
+\begin{curiobox}{What is the outbox pattern and how does it relate to Kafka?}
+A subtle problem in event-driven systems: the API server wants to save data to a database and publish an event to Kafka atomically --- either both succeed or neither does. But a database transaction and a Kafka write are two different systems; you cannot include them in the same ACID transaction. If the server saves to the database but crashes before writing to Kafka, the event is lost. The \textit{outbox pattern} solves this: the API server writes the event to a special \texttt{outbox} table in the same database transaction as the primary data change. A separate process (Debezium, a change data capture tool, is common) tails the database's change log (WAL in PostgreSQL) and writes outbox rows to Kafka. Now the event is guaranteed to reach Kafka as long as the database write succeeded. This pattern is referenced in the progress.md gap list as a topic for L2-11, but understanding why it exists --- the atomicity problem at system boundaries --- is already relevant to your notification system design.
+\end{curiobox}
+
+\begin{curiobox}{Can Kafka be used as a database? Is log compaction enough?}
+Kafka's log compaction retains the latest value per key, making it a durable, queryable store of the current state of each key. Some teams use Kafka compacted topics as a source of truth --- and this is the basis of Kafka-native stateful stream processing (materialized views in Kafka Streams, KTables). However, Kafka is not a general-purpose database: it does not support random reads by key (you must scan the entire log from the beginning to find a key, unless you use Kafka Streams which maintains a RocksDB index locally), it has no secondary indexes, and it has no query language. The practical use case for log compaction is: bootstrapping new consumers with current state (``give me the latest profile for every user''), not as a replacement for PostgreSQL or Cassandra. Real databases built on log-structured storage (RocksDB, LevelDB) provide the random-read and indexing capabilities that raw Kafka lacks.
+\end{curiobox}
+
+% ── Section 13: Self-Quiz ─────────────────────────────────────────────────────
+\newpage
+\section{Self-Quiz}
+\addcontentsline{toc}{section}{Self-Quiz}
+
+Answer each question as if you are in a live interview. Time yourself: aim for 3--4 minutes per question. Answers are on the following page.
+
+\begin{quizbox}
+\textbf{Q1.} Your team is building a notification system for a social app with 50 million users. The product manager wants push notifications, email notifications, and in-app notifications, with the ability to add SMS in the future. Walk me through how you would architect the delivery pipeline from the point where the API server receives a user action to the point where the notification reaches the device. What specific messaging technologies would you use, and why?
+
+\vspace{0.8em}
+\textbf{Q2.} I'm looking at your design and I see you're using Kafka. The Kafka cluster goes down for 5 minutes during a traffic spike. What happens to notifications during that 5 minutes? How do you recover? How do you ensure no notifications are lost?
+
+\vspace{0.8em}
+\textbf{Q3.} A Kafka consumer group is falling behind --- the consumer lag is growing at 10,000 messages per minute and you currently have 6 consumers reading from a topic with 12 partitions. What are your options to catch up? What is the ceiling on parallelism, and why?
+
+\vspace{0.8em}
+\textbf{Q4.} Your notification consumer reads a message from Kafka, calls APNs, APNs returns a 200 success, but then the consumer crashes before committing the offset. What happens when the consumer restarts? How do you prevent the user from receiving a duplicate push notification?
+
+\vspace{0.8em}
+\textbf{Q5.} An interviewer asks: ``Why not just have the API server call the notification service directly, synchronously, instead of using Kafka? Keep it simple.'' How do you respond?
+\end{quizbox}
+
+\newpage
+\begin{answerbox}
+\textbf{A1. Notification Pipeline Design}
+
+The API server writes one event to a Kafka topic (\texttt{notification-events}, partitioned by \texttt{target\_user\_id}) and returns immediately. Kafka fans this out to three independent consumer groups: push-notification workers (call APNs/FCM), in-app workers (write to DB + push via WebSocket), and email workers (buffer to Redis, drain hourly). Each consumer group can be scaled independently. Adding SMS requires a fourth consumer group --- no changes to the API server or other workers. Kafka is the right choice over SQS here because we need native multi-consumer fan-out without SNS glue, and we need replay capability for backfilling new consumers.
+
+\vspace{0.8em}
+\textbf{A2. Kafka Downtime Recovery}
+
+Kafka is designed for high availability: with a replication factor of 3, the cluster tolerates one broker failure without data loss. A full 5-minute outage means producers (API servers) cannot write. Messages generated during this window are lost from the queue --- \textit{unless} the API server implements a local buffer or retry. A production-grade system would have the API server write to a local database outbox table synchronously, and a background process would publish to Kafka once it recovers. On Kafka recovery, consumers resume from their last committed offset --- no messages that were in Kafka before the outage are lost, because they are on disk. Consumers simply catch up on the backlog.
+
+\vspace{0.8em}
+\textbf{A3. Consumer Lag --- Scaling Up}
+
+With 12 partitions and only 6 consumers, each consumer reads 2 partitions. Adding 6 more consumers (total 12) brings the ratio to 1 consumer per partition --- maximum parallelism. Adding more than 12 consumers provides no benefit; the excess consumers are idle because a partition can only be assigned to one consumer within a group. The ceiling on parallelism is the number of partitions. To go beyond 12, you must increase the number of partitions, which requires recreating the topic. Temporary catch-up strategies: increase batch size per poll, reduce processing time (optimize the downstream call), or temporarily increase consumer instances to the partition ceiling.
+
+\vspace{0.8em}
+\textbf{A4. Duplicate Notification Prevention}
+
+At-least-once delivery means the message is re-delivered when the offset is not committed. The consumer will re-read the same message and attempt to call APNs again. To prevent a duplicate push notification: before calling APNs, check a Redis set for the \texttt{event\_id}. If present, the notification was already sent --- skip the APNs call and commit the offset. If not present, call APNs, write the \texttt{event\_id} to Redis with a TTL of 24 hours, then commit the offset. This idempotency check makes the consumer safe under at-least-once delivery. Additionally, APNs supports the \texttt{apns-collapse-id} header to collapse duplicate notifications at the platform level as a second line of defense.
+
+\vspace{0.8em}
+\textbf{A5. Why Not Synchronous Direct Calls?}
+
+Direct synchronous calls tightly couple the API server's availability and latency to every notification service. If the email service is slow, user actions feel slow. If the push notification service crashes, user actions fail. During traffic spikes, every downstream service receives the full load simultaneously with no buffering. The blast radius of any single service failure expands to include the entire user-facing API. Adding a new notification type (SMS) requires modifying the API server and handling the new failure mode there. With Kafka, the API server is decoupled: it writes one message and returns. Downstream services fail independently, recover independently, and scale independently. The queue absorbs traffic spikes. New consumers are added without touching the API server. The complexity cost of Kafka is justified by the resilience and flexibility it provides at this scale.
+\end{answerbox}
+
+% ── Section 14: What's Next ───────────────────────────────────────────────────
+\newpage
+\section{What's Next}
+
+\begin{insightbox}
+\textbf{Gate 1 is now unlocked.}
+
+You have completed the three prerequisite lessons for Gate 1:
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{L1-01} --- Networking: TCP, UDP, HTTP, WebSockets (persistent connections, the layer APNs runs on)
+  \item \textbf{L1-02} --- Push Delivery: APNs and FCM (the device delivery layer, what happens after your worker calls out)
+  \item \textbf{L1-08} --- Message Queues and Streaming (the async pipeline that decouples your API from your delivery workers)
+\end{itemize}
+
+The Notification System mock interview retry (\textbf{L3-01}) is now available. In session\_001 you scored 9/25. You now have the three knowledge layers that were missing: you know how the API server hands off work without blocking (L1-08 fan-out), you know what happens at the APNs boundary (L1-02), and you know how the device receives the notification over a persistent TCP connection (L1-01).
+
+The recommended approach for the retry: open \texttt{/interview} and announce ``Notification System, Apple ICT3.'' Do not reveal that you have studied this specific problem. Design from first principles, applying the three-layer mental model. Use the 5-category requirements framework from the CLAUDE.md interviewer mode. When the interviewer asks how the API hands off to notification workers --- name Kafka, describe the fan-out, and explain why it is asynchronous.
+
+After Gate 1, the recommended continuation is: \textbf{L1-05} (Databases --- Relational) and \textbf{L1-06} (Databases --- NoSQL) to progress toward Gate 2, which unlocks the URL Shortener and Rate Limiter mock interviews.
+\end{insightbox}
+
+\end{document}
