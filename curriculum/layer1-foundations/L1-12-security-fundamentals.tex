@@ -1,0 +1,558 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[top=2.8cm,bottom=2.8cm,left=3cm,right=3cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage[table,dvipsnames]{xcolor}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,hooks}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{boxbg}{HTML}{F8F9FA}
+\definecolor{termbg}{HTML}{EBF5FB}
+\definecolor{industrybg}{HTML}{EAFAF1}
+\definecolor{trapbg}{HTML}{FDEDEC}
+\definecolor{thinkbg}{HTML}{FEF9E7}
+\definecolor{curiobg}{HTML}{F4ECF7}
+\definecolor{insightbg}{HTML}{EBF5FB}
+
+\hypersetup{colorlinks=true,linkcolor=linkblue,urlcolor=linkblue,citecolor=linkblue}
+\setstretch{1.15}
+
+\newtcolorbox{termbox}[1]{title={\textbf{Term: #1}},colback=termbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{industrybox}[1]{title={\textbf{Industry: #1}},colback=industrybg,colframe=green!50!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{trapbox}[1]{title={\textbf{Trap: #1}},colback=trapbg,colframe=accent,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{thinkbox}{title={\textbf{Think About It}},colback=thinkbg,colframe=orange!70!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{curiobox}[1]{title={\textbf{Q: #1}},colback=curiobg,colframe=purple!60!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{insightbox}{title={\textbf{Key Insight}},colback=insightbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{quizbox}[1]{title={\textbf{Question #1}},colback=boxbg,colframe=primary,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{answerbox}[1]{title={\textbf{Answer #1}},colback=industrybg,colframe=green!50!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{primary}{L1-12: Security Fundamentals}}
+\fancyhead[R]{\small\textcolor{primary}{System Design Curriculum}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{highlight}}{}{0em}{}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title Page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\footnotesize\textcolor{highlight}{\textbf{SYSTEM DESIGN CURRICULUM --- LAYER 1: FOUNDATIONS}}}\\[0.4cm]
+{\Large\bfseries\textcolor{primary}{L1-12}}\\[0.3cm]
+{\Huge\bfseries\textcolor{primary}{Security Fundamentals}}\\[0.5cm]
+{\large\textcolor{highlight}{TLS, JWT, OAuth2, API Keys, and Secret Management}}\\[0.8cm]
+\rule{0.5\textwidth}{0.6pt}\\[0.8cm]
+{\normalsize Edition 2025}\\[0.2cm]
+{\small Data sources: Cloudflare Radar (2024), Let's Encrypt Stats (2024--2025),\\
+OWASP API Security Top 10 (2023), PortSwigger Web Security Academy,\\
+Capital One Breach ACM Analysis (2022), Kubernetes Official Documentation}\\[1.5cm]
+
+\begin{insightbox}
+\textbf{Why this lesson matters for your interviews.}
+
+Every system design interview at Apple ICT3 level will implicitly or explicitly test your security instincts. The interviewer will ask: ``How do clients authenticate to your service?'' They will ask: ``Is the data encrypted in transit?'' They will ask: ``How do your microservices talk to each other?'' These are not bonus questions --- they are table stakes. A candidate who answers ``just use HTTPS'' without understanding \textit{why} TLS works, or who proposes storing API keys in environment files without addressing secret rotation, signals to the interviewer that security is an afterthought rather than a design constraint.
+
+Senior engineers (ICT3 and above) are expected to design secure-by-default systems. This means choosing the right authentication mechanism for the right trust model, understanding what TLS actually protects versus what it does not, and knowing how secrets propagate through distributed systems without ever appearing in plaintext logs or version control. This lesson closes that gap.
+
+The connection to past sessions: in L1-11 (API Design), we discussed idempotency keys and rate limiting. Both of those patterns exist partly \textit{because} of security --- idempotency prevents replay attacks, and rate limiting prevents credential stuffing. Security is not a separate concern. It is woven into every design decision.
+\end{insightbox}
+
+\vfill
+{\small\textcolor{gray}{System Design Interview Preparation --- Apple ICT3 Target Track}}
+\end{titlepage}
+
+% ── Table of Contents ─────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ── Section 1: Why This Exists ────────────────────────────────────────────────
+\section{Why This Exists: The Problem of Trust on an Open Network}
+
+The internet was not designed to be secure. ARPANET, the predecessor to the modern internet, was designed for resilience in the face of physical network failures, not for protecting data from adversaries. Every packet you send traverses routers, switches, and cables owned by parties you have never met and cannot audit. Anyone positioned on the network path between your client and server --- a compromised ISP router, a rogue Wi-Fi access point, or a state-level adversary --- can read your traffic if it is not encrypted. This is not a theoretical threat.
+
+In April 2014, a bug called Heartbleed was disclosed in OpenSSL, the library that underpinned TLS for the majority of the internet. The bug allowed any attacker to read 64 kilobytes of memory from a running server, repeatedly, without leaving a log trace. Security researchers estimated that roughly 17\% of all ``secure'' web servers on the internet were vulnerable at the time of disclosure --- meaning their private keys, session tokens, and even passwords could be silently exfiltrated. Companies scrambled to rotate certificates and keys across thousands of servers in a matter of days. The lesson was not that OpenSSL was buggy (all software has bugs). The lesson was that \textit{the entire edifice of internet trust depended on a library maintained by a handful of unpaid volunteers}, and that security is a system property, not a feature you can bolt on after the fact.
+
+In December 2021, Log4Shell (CVE-2021-44228) hit. Apache Log4j, a ubiquitous Java logging library, was found to execute arbitrary code when it logged a specially crafted string. Within 24 hours of the vulnerability's public disclosure, attackers were actively exploiting it against production systems worldwide. The attack surface was enormous because Log4j was embedded in countless applications, often transitively --- developers did not even know they were using it. Security researchers at Cloudflare observed the first exploitation attempts within 9 minutes of the CVE being made public in December 2021.
+
+These incidents illuminate a design principle that shapes everything in this lesson: \textbf{security is a constraint you design around from the start, not a layer you add after you have finished building}. Every system you design in an interview implicitly operates on the open internet. Every API you expose is reachable by adversaries. Every secret your service needs to operate is a liability if it is stored carelessly. The subsections that follow give you the vocabulary and the mental models to make security decisions at design time, before the interviewer asks --- and before the adversary arrives.
+
+% ── Section 2: TLS and Encryption in Transit ─────────────────────────────────
+\section{TLS and Encryption in Transit}
+
+\subsection{The Problem TLS Solves}
+
+Before TLS existed, HTTP traffic was transmitted in plaintext over TCP. A network observer --- whether a curious ISP engineer, a nation-state intelligence agency, or an attacker on the same coffee shop Wi-Fi network --- could read every request and response verbatim. They could see your login credentials, your session cookies, the content of your messages. They could also \textit{modify} the traffic in transit: injecting malicious JavaScript into a page, redirecting you to a phishing site, or silently changing the bank account number in a wire transfer. This class of attack is called a man-in-the-middle (MITM) attack, and it requires only that the attacker control a network node between client and server.
+
+TLS (Transport Layer Security) was designed to defeat both problems simultaneously: it encrypts the data so observers cannot read it, and it authenticates the server so clients know they are talking to the real endpoint rather than an impersonator. The authentication component is what makes TLS more than just encryption --- a secure tunnel to the wrong server is worthless.
+
+\subsection{The TLS 1.3 Handshake}
+
+TLS 1.3, standardized in RFC 8446 (2018), redesigned the handshake that its predecessors used. Understanding the handshake is essential because interviewers will ask you about latency, and TLS latency is a function of the handshake.
+
+In TLS 1.2, establishing a connection required two round trips before any application data could be sent: one round trip to negotiate the cipher suite, and a second to exchange keys. TLS 1.3 collapsed this to a single round trip (1-RTT). The client sends its supported key shares in the very first message (ClientHello), and the server can respond with its certificate and the server's key share in one message, deriving the session key immediately. The client then sends its Finished message and the first encrypted application data together.
+
+TLS 1.3 also introduced 0-RTT resumption for reconnecting clients: if a client has previously connected to the server, it can send encrypted application data in its very first message, with zero additional round trips. However, 0-RTT data is \textit{replay-susceptible} --- an attacker who captures a 0-RTT ClientHello can replay it to the server, potentially re-executing the same request. For this reason, 0-RTT is safe only for idempotent requests (think GET requests), never for state-modifying operations.
+
+\begin{termbox}{Certificate Authority (CA)}
+A Certificate Authority is a trusted third party that vouches for the identity of a server. When your browser visits a website, the server presents a TLS certificate. That certificate contains the server's public key, signed by a CA's private key. Your browser ships with a list of trusted root CAs (roughly 150 organizations, curated by browser vendors). If the certificate chains up to a trusted root, your browser accepts the identity claim. If it does not --- because the certificate is self-signed, expired, or issued for a different domain --- you see a security warning.
+
+The trust model is centralised and has known weaknesses: a compromised CA can issue fraudulent certificates for any domain. Certificate Transparency (RFC 9162) partially addresses this by requiring CAs to publish all issued certificates to public, append-only logs, enabling domain owners to detect fraudulent issuance.
+\end{termbox}
+
+\begin{industrybox}{Let's Encrypt and HTTPS Adoption}
+Let's Encrypt, launched in 2016 by the Internet Security Research Group (ISRG), automated the process of obtaining and renewing TLS certificates for free. Before Let's Encrypt, certificates cost \$50--\$200/year and required manual renewal. The friction was a significant barrier for smaller sites.
+
+By 2024, Let's Encrypt had issued over \textbf{3 billion certificates} in total and was issuing more than \textbf{400 million active certificates} at its peak. As of late 2024, Let's Encrypt commands roughly \textbf{63.9\% market share} of all active TLS certificates on the public internet (SSL Insights, 2024). HTTPS adoption on Chrome reached \textbf{over 95\%} of all page loads by 2024 (Google Transparency Report, 2024). The Cloudflare 2024 Year in Review reported that \textbf{94.65\% of web requests} served through their network were encrypted, with TLS 1.3 accounting for approximately \textbf{71.5\% of all HTTPS traffic} --- a remarkable acceleration from near-zero in 2018.
+
+The practical implication for system design: there is now no legitimate reason to serve any API or web application over plain HTTP. The tools are free, automated, and universally supported.
+\end{industrybox}
+
+\subsection{What TLS Protects and What It Does Not}
+
+TLS protects data \textit{in transit}: it prevents eavesdropping and tampering between client and server. It does not protect data \textit{at rest} --- once decrypted at the server, the plaintext lives in memory and may be written to disk or logs in cleartext. TLS does not protect against a compromised server: if the server is breached, the attacker sees plaintext. TLS does not protect against an insider threat: a database administrator with direct access to the database bypasses TLS entirely.
+
+TLS also does not protect the \textit{metadata} of communication. An observer who cannot read your HTTPS traffic can still see which IP addresses you are connecting to, how much data you are transferring, and when you are communicating. Traffic analysis can reveal a great deal even without decrypting the content.
+
+\begin{thinkbox}
+If TLS only protects data in transit, why is it mandatory for system design? Because most attacks happen in transit. Credential theft from unsecured Wi-Fi, session hijacking via cookie sniffing, MITM attacks injecting malicious payloads --- these are all prevented by TLS. Defense in depth requires protecting the other vectors (at-rest encryption, access control) separately, but transit encryption is the foundational layer. An interview answer that omits TLS for any user-facing or service-to-service communication will raise immediate red flags.
+\end{thinkbox}
+
+\subsection{Certificate Pinning}
+
+Certificate pinning is a technique where a client hard-codes the expected certificate (or its public key hash) for a particular server, refusing to connect if the presented certificate does not match --- even if it is validly signed by a trusted CA. Mobile applications commonly use pinning to prevent MITM attacks that exploit compromised or rogue CAs.
+
+The operational cost of pinning is high: if the server rotates its certificate, the client application must be updated to include the new pin before the old certificate expires, or all connections will fail. For this reason, pinning a CA's public key (rather than the leaf certificate) is safer, as CAs rotate their intermediate certificates less frequently. The risks and complexity of certificate pinning make it a pattern to mention in interviews but use cautiously in production.
+
+% ── Section 3: Authentication Mechanisms ─────────────────────────────────────
+\section{Authentication Mechanisms}
+
+\subsection{The Three Dominant Approaches}
+
+Authentication is the process of verifying that a client is who it claims to be. There are three mechanisms you will encounter constantly in system design interviews: API keys, session tokens, and JWTs. Each represents a different point on the spectrum between simplicity and capability.
+
+\textbf{API keys} are the simplest form of machine authentication. A key is a random string --- typically 32--64 characters --- generated by the server and given to a client during onboarding. The client includes the key in every request (usually in an HTTP header, e.g., \texttt{Authorization: Bearer sk-abc123...}). The server looks up the key in a database to verify it is valid and identify the associated account. API keys have no intrinsic expiry and no cryptographic signature, which means there is no way to detect a compromised key without explicit revocation. A key checked into version control, logged in plaintext, or sent over an unencrypted connection is permanently compromised from that moment forward. Despite these risks, API keys remain ubiquitous for server-to-server integrations where the client is a controlled machine rather than an end user.
+
+\textbf{Session tokens} are the traditional approach for web authentication. When a user logs in, the server creates a server-side session record in a database or cache and gives the client a short random token (a session ID). On subsequent requests, the client sends the token, the server looks it up in the database to retrieve the session data, and the request is processed. Session tokens are easy to revoke (just delete the database record) and easy to inspect (the server controls all session state). Their disadvantage is that every request requires a database lookup, which adds latency and creates a scaling bottleneck. In a horizontally scaled system, either all nodes must share access to a central session store, or you must implement sticky sessions (routing each client to the same server), both of which add infrastructure complexity.
+
+\textbf{JWTs (JSON Web Tokens)} were designed to solve the statelessness problem of session tokens. A JWT is a self-contained, cryptographically signed token that encodes all of the information the server needs to authenticate the request. The server does not need to look anything up in a database --- it simply verifies the signature and reads the claims from the token itself.
+
+\subsection{JWT Structure and Verification}
+
+A JWT consists of three Base64URL-encoded sections separated by dots: \texttt{header.payload.signature}.
+
+The \textbf{header} specifies the token type (\texttt{JWT}) and the signing algorithm (\texttt{RS256} or \texttt{HS256}). The \textbf{payload} contains the claims: the subject (\texttt{sub}), expiry time (\texttt{exp}), issued-at time (\texttt{iat}), and any application-specific data (roles, permissions, user ID). The \textbf{signature} is a cryptographic hash of the header and payload, signed with a secret key (for HMAC algorithms) or a private key (for RSA/ECDSA algorithms).
+
+\begin{termbox}{RS256 vs HS256}
+\textbf{HS256} (HMAC-SHA256) uses a single shared secret for both signing and verification. This is simple but means that any service that needs to \textit{verify} tokens must also have access to the secret that \textit{signs} them. In a microservices architecture, distributing a shared signing secret to many services is a security liability.
+
+\textbf{RS256} (RSA-SHA256) uses a private key to sign and a public key to verify. The authentication server keeps the private key secret; all other services receive only the public key. A compromised API service can verify tokens but cannot forge new ones. For any system with multiple services, RS256 is the correct choice.
+\end{termbox}
+
+The critical interview point about JWTs is token storage. If a JWT is stored in \texttt{localStorage}, it is accessible via JavaScript and therefore vulnerable to Cross-Site Scripting (XSS) attacks: any malicious script injected into the page can steal all tokens from localStorage. Storing JWTs in \texttt{httpOnly} cookies makes them inaccessible to JavaScript but introduces Cross-Site Request Forgery (CSRF) vulnerability, which must be mitigated with CSRF tokens or the \texttt{SameSite} cookie attribute. Neither approach is perfect; the choice depends on the threat model of the application.
+
+\begin{trapbox}{The JWT \texttt{alg:none} Attack}
+One of the most infamous JWT vulnerabilities exploits the fact that the header's \texttt{alg} field is attacker-controlled. An attacker who holds a valid JWT can modify the payload (e.g., changing their \texttt{role} from \texttt{user} to \texttt{admin}), then set \texttt{alg} to \texttt{none} in the header. If the server's JWT library honours the \texttt{none} algorithm (meaning ``no signature required''), it will accept the modified token without verification.
+
+Variants of this attack use case variations (\texttt{NONE}, \texttt{nOnE}) to bypass naive string-matching filters. Secure JWT libraries explicitly whitelist acceptable algorithms server-side and reject any token whose header specifies an algorithm not on the list --- the algorithm must never be taken from the token itself. A related attack is the \textbf{algorithm confusion} attack: tricking an RS256-configured server into accepting an HS256 token signed with the server's \textit{public} key as the HMAC secret.
+
+Both attacks are documented in PortSwigger's Web Security Academy and have appeared in real bug bounty programs. The fix is always the same: server-side algorithm whitelisting, never trusting the \texttt{alg} field in the token header.
+\end{trapbox}
+
+% ── Section 4: OAuth 2.0 and Authorization ───────────────────────────────────
+\section{OAuth 2.0 and Authorization}
+
+\subsection{The Problem OAuth Solves}
+
+Before OAuth, the dominant pattern for granting a third-party application access to your data was to give that application your password. If you wanted a calendar application to access your Gmail contacts, you typed your Google password into the calendar app. The application stored your password and used it to log in as you. The problems with this model are obvious: the third-party application has unlimited access to your account, you cannot revoke access without changing your password (which revokes access for every application), and if the third-party application is breached, your credentials are exposed.
+
+OAuth 2.0 (RFC 6749, 2012) introduced the concept of \textbf{delegated authorization}: instead of sharing your password, you grant the third-party application a scoped, revocable access token. The key insight is that the token represents not ``who you are'' but ``what permissions you have granted to this application.'' You can revoke that permission without changing your password, and you can grant different applications different scopes (e.g., one application can read your calendar, another can read and write it).
+
+\subsection{OAuth 2.0 Flows}
+
+OAuth 2.0 defines several ``grant types'' (flows) for different use cases:
+
+\textbf{Authorization Code Flow} is the standard flow for web applications where a human user is present. The application redirects the user to the authorization server (e.g., Google's OAuth endpoint). The user authenticates with the authorization server and grants permission. The authorization server redirects back to the application with a short-lived \textit{authorization code}. The application exchanges the code for an access token via a server-to-server request that includes the application's client secret. The crucial security property is that the access token is never exposed to the browser; only the short-lived code is, and it can only be exchanged by a party that knows the client secret.
+
+\textbf{PKCE} (Proof Key for Code Exchange, pronounced ``pixie'') extends the Authorization Code Flow for public clients like mobile apps and single-page applications (SPAs) that cannot safely store a client secret. Instead of a static client secret, the client generates a cryptographic random \textit{code verifier}, hashes it to produce a \textit{code challenge}, and sends the challenge with the authorization request. When exchanging the code for a token, the client sends the original verifier. The authorization server verifies the hash matches. This prevents authorization code interception attacks where a malicious app intercepts the redirect.
+
+\textbf{Client Credentials Flow} is for machine-to-machine (M2M) authentication where there is no human user. The application authenticates directly with the authorization server using its \texttt{client\_id} and \texttt{client\_secret} and receives an access token. This is the correct flow for microservices calling other microservices, cron jobs, and CI/CD pipelines.
+
+\begin{termbox}{OpenID Connect (OIDC)}
+OAuth 2.0 was designed for \textit{authorization} (what you can do), not \textit{authentication} (who you are). OpenID Connect (OIDC) is a thin identity layer built on top of OAuth 2.0 that adds authentication. It introduces the \textbf{ID Token} --- a JWT containing verified claims about the user's identity (their name, email, profile picture). The access token still controls API authorization; the ID Token is used for establishing the user's identity in the application session. When you click ``Sign in with Google,'' you are using OIDC.
+\end{termbox}
+
+\begin{industrybox}{OAuth 2.0 at Scale}
+OAuth 2.0 is the foundation of almost every modern API ecosystem. GitHub's OAuth Apps and GitHub Apps both use OAuth 2.0, with millions of third-party integrations as of 2024 --- GitHub reports over 100,000 OAuth applications registered in its developer ecosystem. Google's OAuth 2.0 infrastructure processes billions of authorization requests daily across Gmail, Drive, Calendar, and thousands of third-party applications.
+
+The security implications at scale are significant. Token theft accounted for an estimated 31\% of Microsoft 365 cloud breaches in 2025 (Microsoft Security Report, 2025), with attackers targeting OAuth tokens because a stolen token grants API access without requiring the victim's password. This is why short-lived access tokens (15 minutes is a common default) combined with longer-lived refresh tokens (7--30 days) are the standard pattern: even if an access token is stolen, its window of exploitation is limited.
+\end{industrybox}
+
+% ── Section 5: API Security Patterns ─────────────────────────────────────────
+\section{API Security Patterns}
+
+\subsection{Rate Limiting and Brute Force Prevention}
+
+An API exposed to the internet without rate limiting is an open invitation for brute force attacks. Attackers attempt credential stuffing --- trying millions of username/password combinations leaked from other breaches --- against login endpoints. They attempt API key enumeration against endpoints that accept keys without rate limits. Rate limiting (covered in depth in L1-11) is a security control as much as it is a performance control.
+
+The token bucket and leaky bucket algorithms (discussed in L1-11) apply here. For authentication endpoints specifically, the rate limit must be applied per IP address (or per account, if the account can be identified before authentication) and must be low enough to prevent automated attacks. Security-conscious systems add exponential backoff: after 5 failed login attempts, the account is locked for 30 seconds; after 10, for 5 minutes; after 20, for 24 hours. CAPTCHA challenges after failed attempts are a related pattern, though they are increasingly solvable by automated systems.
+
+\subsection{CORS and Preflight Requests}
+
+The browser enforces a Same-Origin Policy: JavaScript running on \texttt{attacker.com} cannot make credentialed requests to \texttt{yourapi.com}. Cross-Origin Resource Sharing (CORS) is the mechanism by which an API explicitly grants exceptions to this policy. When a browser makes a cross-origin request that might be dangerous (e.g., a \texttt{POST} with a custom \texttt{Authorization} header), it first sends a \textit{preflight} \texttt{OPTIONS} request. The server's response must include the appropriate \texttt{Access-Control-Allow-*} headers specifying which origins, methods, and headers are permitted.
+
+The common security mistake is setting \texttt{Access-Control-Allow-Origin: *} (allow all origins) on APIs that accept cookies or \texttt{Authorization} headers. This configuration is dangerous because it effectively negates the Same-Origin Policy. Authenticated APIs should always specify an explicit allowlist of trusted origins.
+
+\subsection{Input Validation and the OWASP API Security Top 10}
+
+The OWASP API Security Top 10 (2023 edition) documents the most critical API security risks encountered in real systems. The top concern, \textbf{Broken Object Level Authorization (BOLA)}, accounts for approximately 40\% of all API attacks (OWASP, 2023). BOLA occurs when an API endpoint uses a user-supplied object ID to fetch data without verifying that the requesting user owns that object. For example, \texttt{GET /api/orders/12345} returns the order with ID 12345 --- but does the server verify that the authenticated user is the owner of order 12345? If not, any authenticated user can enumerate all orders in the system.
+
+\textbf{Broken Authentication} is ranked second. This covers weak session management, missing token expiry, predictable tokens, and failure to invalidate tokens after logout. \textbf{Broken Object Property Level Authorization} covers mass assignment vulnerabilities: an endpoint that accepts a JSON body and blindly assigns all fields to a database record may allow a user to set fields they should not control (e.g., setting \texttt{isAdmin: true}).
+
+\begin{thinkbox}
+Why was SQL injection \textit{removed} from the OWASP API Security Top 10 in 2023, having been a perennial top concern for web applications? Modern frameworks (Django ORM, ActiveRecord, SQLAlchemy, Hibernate) use parameterized queries by default, making injection attacks far harder to introduce accidentally. The shift reflects the maturation of tooling, not the disappearance of the threat. Legacy systems and raw SQL usage remain vulnerable. In an interview, if you are designing a system that uses raw SQL queries, mention parameterized queries explicitly.
+\end{thinkbox}
+
+\subsection{HTTPS-Only APIs and HSTS}
+
+Any API that supports both HTTP and HTTPS is vulnerable to SSL stripping attacks: an attacker downgrades the connection to HTTP before the client can establish TLS, then reads the plaintext traffic. HTTP Strict Transport Security (HSTS) prevents this by instructing browsers to only connect to your domain over HTTPS, for a specified duration (typically one year). The \texttt{Strict-Transport-Security} header is set on the first HTTPS response; thereafter, the browser will refuse HTTP connections to your domain entirely.
+
+APIs should use \texttt{Secure} and \texttt{HttpOnly} cookies, set \texttt{SameSite=Strict} or \texttt{SameSite=Lax} on authentication cookies, and return \texttt{X-Content-Type-Options: nosniff} and \texttt{X-Frame-Options: DENY} headers to prevent MIME sniffing and clickjacking attacks respectively.
+
+% ── Section 6: Secret Management ─────────────────────────────────────────────
+\section{Secret Management}
+
+\subsection{What Is a Secret and Why Does It Matter}
+
+A secret is any value that must remain confidential for the security of a system: database passwords, API keys for third-party services, private keys for TLS certificates or JWT signing, encryption keys for data at rest, and OAuth client secrets. The defining property of a secret is that its exposure immediately compromises the security of whatever it protects. A leaked database password gives an attacker direct access to your database. A leaked JWT signing private key allows an attacker to forge authentication tokens for any user in your system.
+
+Secrets are uniquely dangerous in distributed systems because they must be present at runtime on potentially many machines, yet they must never appear in version control, log files, error messages, or environment dumps. The tension between availability (the service needs the secret to function) and confidentiality (the secret must not be exposed) is the core challenge of secret management.
+
+\subsection{The Problem with .env Files and Hardcoded Secrets}
+
+The most common secret management antipattern is the \texttt{.env} file: a plaintext file containing environment variable definitions that lives in the project directory. When a developer accidentally commits this file to a public (or even private) Git repository, the secrets are permanently compromised --- even if the file is deleted in a later commit, it remains in the repository history and can be recovered with standard Git commands. The problem is pervasive: the secret scanning service GitGuardian reported detecting over 10 million secrets newly exposed in public GitHub repositories in 2023, a 67\% increase from the prior year.
+
+Hardcoded secrets (constants defined directly in source code) are equally dangerous and sometimes worse, because they are embedded in compiled binaries and change logs in addition to source history. Rotating a hardcoded secret requires a code change, a review, and a deployment --- a process that takes hours or days --- while the compromised value remains active.
+
+\subsection{HashiCorp Vault and Dynamic Secrets}
+
+HashiCorp Vault (open-sourced in 2015, acquired by IBM via HashiCorp in 2025 for \$6.4 billion) is the most widely adopted enterprise secrets management platform. Its fundamental value proposition is \textbf{dynamic secrets}: rather than storing a static database password that many services share, Vault generates a unique, short-lived credential for each service on demand and automatically revokes it when it expires.
+
+Vault's architecture has several key properties that are worth articulating in an interview. First, it maintains a complete \textbf{audit log} of every secret access: who requested which secret, at what time, from which IP address. This is invaluable for incident response --- when a breach is detected, you can reconstruct exactly which credentials were accessed and when. Second, Vault supports multiple \textbf{authentication methods}: Kubernetes service accounts, AWS IAM roles, TLS certificates, and LDAP, allowing services to authenticate to Vault using their existing identity rather than requiring a separate Vault password. Third, Vault's \textbf{lease system} means every secret has an associated TTL and can be revoked immediately by an operator --- if a service is compromised, its Vault lease can be revoked and all dynamic credentials it holds become invalid within seconds.
+
+\begin{industrybox}{Capital One Breach: SSRF + Overpermissioned IAM (2019)}
+The Capital One data breach of 2019, which exposed 106 million customer records and resulted in a \$80 million regulatory fine, is the canonical example of how secret management failures cascade. The attack chain was: a misconfigured WAF (Web Application Firewall) in Capital One's AWS infrastructure allowed an attacker to perform a \textbf{Server-Side Request Forgery (SSRF)} attack. Through SSRF, the attacker instructed Capital One's own application server to send a request to the AWS EC2 metadata endpoint (\texttt{http://169.254.169.254/latest/meta-data/iam/...}), which returned the temporary IAM credentials associated with the EC2 instance's IAM role.
+
+The second critical failure was that the EC2 instance's IAM role had \textbf{excessive permissions}, including read access to all S3 buckets. With the exfiltrated IAM credentials, the attacker listed and downloaded the contents of over 700 S3 buckets containing financial application data. A properly scoped IAM role with least-privilege access would have limited the blast radius to the specific resources that EC2 instance legitimately needed --- not the entirety of Capital One's S3 storage. IMDSv2 (the updated AWS metadata service), which requires an additional PUT request before GET requests, would have blocked this SSRF vector, but it was not yet available at the time of the breach.
+
+The lesson for system design: least-privilege IAM, SSRF prevention (validate all outbound URLs, block requests to link-local ranges), and dynamic credentials with short TTLs are all first-class security requirements, not post-deployment hardening.
+\end{industrybox}
+
+\subsection{Kubernetes Secrets: A Common Trap}
+
+Kubernetes provides a built-in \texttt{Secret} resource type for storing sensitive configuration. The common misconception --- and a trap the interviewer may probe --- is that Kubernetes Secrets are encrypted. They are not. By default, Kubernetes Secrets are stored in \texttt{etcd} as \textbf{Base64-encoded plaintext}. Base64 is an encoding, not encryption: decoding \texttt{c3VwZXItc2VjcmV0} to \texttt{super-secret} takes a fraction of a second and requires no key.
+
+\begin{trapbox}{Kubernetes Secrets are Not Secret by Default}
+Anyone with \texttt{GET} permissions on the \texttt{secrets} resource in a Kubernetes cluster can read every secret in that namespace --- and in default RBAC configurations, the \texttt{view} ClusterRole, which is commonly bound to developers and CI/CD service accounts, includes permission to list secrets. Etcd, where secrets are stored, is also readable by anyone with filesystem access to the etcd data directory.
+
+Production Kubernetes deployments should: (1) enable \textbf{Encryption at Rest} for etcd (configured via \texttt{EncryptionConfiguration} in the API server); (2) restrict RBAC to deny \texttt{get/list} on secrets except to the specific service accounts that require them; (3) consider external secret management via the \textbf{External Secrets Operator} (which fetches secrets from Vault, AWS Secrets Manager, or GCP Secret Manager at runtime); or (4) use Vault's Kubernetes auth method combined with the Vault Agent Injector to deliver secrets as in-memory tmpfs volumes rather than Kubernetes Secrets.
+
+In an interview, if you propose using Kubernetes Secrets for sensitive values without qualifying this, a sharp interviewer will flag it.
+\end{trapbox}
+
+% ── Section 7: Choosing / Decision Framework ──────────────────────────────────
+\section{Choosing the Right Authentication Mechanism}
+
+The right authentication mechanism depends on the trust model, the client type, and the operational requirements of revocation and scaling. The following table maps each mechanism to its key characteristics.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{>{\bfseries}p{2.6cm} p{2.5cm} p{2.5cm} p{2.5cm} p{2.7cm}}
+\toprule
+\textbf{Property} & \textbf{API Keys} & \textbf{Session Tokens} & \textbf{JWT} & \textbf{OAuth2 + JWT} \\
+\midrule
+Stateless? & No (DB lookup) & No (DB lookup) & Yes & Yes (verify sig) \\
+Expiry? & No (manual) & Yes (configurable) & Yes (\texttt{exp} claim) & Yes (short TTL) \\
+Revocation & Hard (DB delete) & Easy (delete session) & Hard (denylist needed) & Moderate (revoke RT) \\
+Human user? & No & Yes & Optional & Yes \\
+M2M? & Yes & No & Yes & Yes (Client Creds) \\
+Delegated auth? & No & No & No & Yes \\
+Risk profile & Key leakage (permanent) & Session fixation & Token theft, alg attacks & Token theft, PKCE bypass \\
+Best use case & Server-to-server API & Web sessions & Microservices & Third-party access \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{When to Use mTLS}
+
+Mutual TLS (mTLS) is TLS where both the client and server present certificates. Standard TLS authenticates only the server; mTLS authenticates both parties. This is the appropriate pattern for service-to-service communication in high-security environments: each microservice is issued a certificate from an internal Certificate Authority, and services refuse connections from any peer that cannot present a valid certificate.
+
+The operational challenge of mTLS is certificate lifecycle management at scale. Systems like SPIFFE (Secure Production Identity Framework for Everyone) and its reference implementation SPIRE automate the issuance and rotation of short-lived X.509 certificates for workloads running in Kubernetes, VMs, and serverless environments. Service meshes like Istio can enforce mTLS transparently between all services in a cluster without requiring application-level code changes. In an interview, mentioning SPIFFE/SPIRE signals familiarity with production-grade service mesh security.
+
+% ── Section 8: Critical Numbers ───────────────────────────────────────────────
+\section{Critical Numbers Reference}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{p{5cm} p{4.5cm} p{4cm}}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Source / Notes} \\
+\midrule
+TLS 1.3 share of HTTPS traffic & $\sim$71.5\% (2024) & Cloudflare Radar, 2024 \\
+HTTPS adoption (Chrome) & $>$95\% of page loads & Google Transparency Report, 2024 \\
+TLS 1.3 handshake latency & 1-RTT (vs 2-RTT for TLS 1.2) & RFC 8446 \\
+TLS 1.3 0-RTT resumption & 0-RTT (replay risk) & RFC 8446, session tickets \\
+Let's Encrypt market share & $\sim$63.9\% of all certs & SSL Insights, 2024 \\
+Let's Encrypt cert lifetime & 90 days (auto-renewal) & Let's Encrypt documentation \\
+JWT recommended max size & $\sim$8 KB & HTTP header size limits \\
+Access token TTL (standard) & 15 minutes & OAuth 2.0 best practices (RFC 9068) \\
+Refresh token TTL (standard) & 7--30 days & OAuth 2.0 best practices \\
+Bcrypt work factor & 10--12 rounds & OWASP Password Storage Cheatsheet \\
+PBKDF2 minimum iterations & 100,000 (SHA-256) & NIST SP 800-63B (2023 update) \\
+BOLA share of API attacks & $\sim$40\% & OWASP API Security Top 10, 2023 \\
+Secrets exposed on GitHub & 10M+ new in 2023 & GitGuardian State of Secrets, 2023 \\
+Capital One breach impact & 106M records, \$80M fine & 2019 breach, US regulatory settlement \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ── Section 9: System Design Application ──────────────────────────────────────
+\section{System Design Application}
+
+\subsection{Example 1: API Gateway with Authentication}
+
+Consider the canonical interview question: ``Design an API gateway for a microservices platform.'' The security dimension of this answer touches every mechanism from this lesson.
+
+External clients authenticate at the gateway, not at individual microservices. The gateway terminates TLS and is the single point of authentication enforcement. External developer clients (third-party apps) use OAuth 2.0 Authorization Code flow with short-lived JWTs. Internal CI/CD pipelines and cron jobs use Client Credentials flow. The gateway validates the incoming JWT's signature using the public key fetched from the authorization server's JWKS (JSON Web Key Set) endpoint, checks the \texttt{exp} claim, verifies the \texttt{aud} (audience) claim matches the gateway, and extracts the user's identity and scopes. It then forwards a trusted header (e.g., \texttt{X-User-ID}) to upstream microservices --- the microservices trust this header because they are not reachable from the public internet, only from the gateway.
+
+Rate limiting is applied at the gateway per client ID and per IP. API key authentication (for simpler third-party integrations) is also validated at the gateway, with the key looked up in a low-latency cache (Redis) to avoid hitting the database on every request. Keys that have been revoked appear in the cache as invalid entries, enabling near-real-time revocation without removing the scalability benefit.
+
+\subsection{Example 2: Payment System Security}
+
+``Design a payment processing system'' is one of the most security-sensitive interview questions. PCI-DSS (Payment Card Industry Data Security Standard) compliance imposes specific requirements: all cardholder data must be encrypted at rest and in transit; private keys must be stored in Hardware Security Modules (HSMs); access to cardholder data must be logged and audited; and credentials must be rotated on a defined schedule.
+
+At the transport layer, all connections use TLS 1.2 or higher (TLS 1.3 preferred). Service-to-service calls within the payment processing cluster use mTLS to ensure only authorized services can participate in transactions. Database credentials are managed by Vault with dynamic secrets: each payment processor instance receives a unique PostgreSQL credential with a one-hour TTL and read/write access only to the tables it requires. The credentials are rotated automatically by Vault; if a service instance is compromised, its credential expires within an hour and cannot be refreshed because the Vault lease is revoked.
+
+At the application layer, idempotency keys (covered in L1-11) prevent duplicate charges if the client retries a payment request. Every write to the payment database is append-only (an audit log of transactions) rather than update-in-place, ensuring a complete forensic record.
+
+\subsection{Example 3: Secure Microservice Communication}
+
+``How do your microservices talk to each other securely?'' is a question designed to probe beyond the happy path of user-facing authentication. The answer in a production environment is SPIFFE/SPIRE with mTLS or a service mesh.
+
+Each microservice is assigned a SPIFFE Verifiable Identity Document (SVID), which is a short-lived X.509 certificate encoding the service's identity (e.g., \texttt{spiffe://prod.company.com/\allowbreak{}payment-service}). The SPIRE agent running on each node automatically rotates the certificate before it expires, typically every 15--60 minutes. When Service A calls Service B, A presents its SVID, B validates it against the trust bundle (the root CA certificate for the cluster), and the connection proceeds. Service B's authorization policy specifies which SPIFFE identities are permitted to call which endpoints --- a principle of least-privilege applied at the network layer.
+
+In Kubernetes, this entire flow can be handled by Istio without modifying application code: Istio's sidecar proxy intercepts all traffic, handles mTLS negotiation, and enforces \texttt{AuthorizationPolicy} resources that define which services can call which services. From the application's perspective, it makes ordinary HTTP calls; the mesh handles all encryption and peer authentication.
+
+% ── Section 10: Curiosity Corner ──────────────────────────────────────────────
+\section{Curiosity Corner}
+\addcontentsline{toc}{section}{Curiosity Corner}
+
+\begin{curiobox}{If JWT is stateless, how do you invalidate a token before it expires?}
+This is the fundamental tension in JWT design. Statelessness is achieved precisely because the server does not store session state --- but revocation requires state. There are three practical approaches, each with tradeoffs.
+
+The first is a \textbf{denylist} (also called a blocklist or revocation list). The server maintains a store (typically Redis) of revoked token IDs (the \texttt{jti} claim). On every request, the server checks the incoming token's \texttt{jti} against the denylist. If it is present, the request is rejected. This works but reintroduces a database lookup on every request --- partially defeating the statelessness advantage of JWT. The denylist can be pruned of entries whose tokens have already expired naturally.
+
+The second approach is \textbf{short expiry with refresh tokens}. Access tokens expire in 15 minutes; if a token is stolen, it has a maximum 15-minute window of exploitation. The user holds a longer-lived refresh token that is stored in the server's database and can be revoked by deleting the database record. When the access token expires, the client exchanges the refresh token for a new one. This is the standard OAuth 2.0 pattern.
+
+The third approach is \textbf{version-based invalidation}: store a ``token version'' counter in the user's database record. The JWT payload includes the version number at the time of issue. On each request, the server looks up the user's current version number (this lookup can be cached) and rejects tokens whose version does not match. Incrementing the version invalidates all outstanding tokens for that user.
+
+None of these approaches is free. Choosing which to implement is a design decision that depends on your revocation latency requirements and your tolerance for database lookups.
+\end{curiobox}
+
+\begin{curiobox}{What is the difference between authentication and authorization?}
+Authentication (AuthN) answers the question: \textbf{who are you?} It is the process of verifying a claimed identity. When you log in with a username and password, or present a JWT, you are authenticating. The server verifies your credential and establishes your identity.
+
+Authorization (AuthZ) answers the question: \textbf{what are you allowed to do?} It is the process of determining whether an authenticated identity has permission to perform a requested action on a specific resource. After the server knows who you are, it checks your permissions. Can this user read this document? Can this service write to this database table? Can this OAuth client access this user's email?
+
+The two are almost always confused in casual conversation, and they are often conflated in system design discussions. A useful mnemonic: you can be authenticated (the server knows who you are) but not authorized (you do not have permission to do what you are trying to do). A system can also fail at authentication (allowing impersonation) without failing at authorization (the impersonator still cannot access privileged resources if the permission model is correct). Defense in depth requires getting both right.
+
+In the context of OAuth 2.0, the OAuth flow itself is primarily about authorization --- granting an application permission to act on a user's behalf. OpenID Connect adds the authentication layer on top, establishing the user's identity via the ID Token.
+\end{curiobox}
+
+\begin{curiobox}{Why is Kubernetes Secrets not actually secret?}
+Kubernetes \texttt{Secret} objects are stored in \texttt{etcd}, the distributed key-value store that backs all Kubernetes state. By default, etcd stores data in plaintext (with only Base64 encoding applied to the values, which is cosmetic). Any operator with access to the etcd data directory --- or any Kubernetes user with \texttt{GET} permission on the \texttt{secrets} resource --- can read the values trivially.
+
+The problem is compounded by Kubernetes' default RBAC configuration. The built-in \texttt{view} ClusterRole, intended for read-only cluster inspection, includes the ability to list and read secrets in its default form in many distributions (though this varies by version and distribution). CI/CD pipelines, monitoring agents, and developer tooling are often bound to overly permissive roles that include secret access.
+
+To actually secure secrets in Kubernetes you need: \textbf{Encryption at Rest} enabled in the API server configuration (using AES-CBC or AES-GCM with a key stored in a KMS provider); strict RBAC that denies secret reads except to specific service accounts; and ideally, replacement of Kubernetes Secrets with a proper secret management solution via the External Secrets Operator or Vault Agent Injector. The distinction matters in interviews: do not say ``store the database password in a Kubernetes Secret'' without immediately qualifying it with encryption at rest and RBAC constraints.
+\end{curiobox}
+
+\begin{curiobox}{What is SSRF and why did it cause the Capital One breach?}
+Server-Side Request Forgery (SSRF) is a vulnerability where an attacker tricks a server into making an HTTP request to an arbitrary URL on the attacker's behalf. The server acts as a proxy, fetching the URL and returning (or using) the response. This is dangerous because the request originates from the server, which may have access to internal network resources that are unreachable from the public internet.
+
+In cloud environments, the most dangerous SSRF target is the \textbf{instance metadata service}. AWS EC2 instances have a special link-local IP address (\texttt{169.254.169.254}) that returns metadata about the instance, including temporary IAM credentials for the instance's assigned role. This service is accessible only from the instance itself --- or, via SSRF, from any application running on the instance.
+
+In the Capital One breach (2019), a misconfigured WAF exposed an SSRF vulnerability. The attacker sent a request that caused Capital One's WAF to fetch \texttt{http://169.254.169.254/latest/meta-data/iam/security-credentials/}, which returned temporary AWS credentials. The attacker then used those credentials to access S3 buckets, exfiltrating 106 million records.
+
+Prevention requires: blocking requests to link-local ranges (\texttt{169.254.0.0/16}) at the network layer; using IMDSv2 (which requires a session-oriented PUT/GET exchange that SSRF cannot complete); validating and allowlisting all URLs that server-side code fetches; and enforcing least-privilege IAM so that a compromised EC2 role can only access the specific resources it needs.
+\end{curiobox}
+
+\begin{curiobox}{How does certificate pinning work and when does it go wrong?}
+Certificate pinning is a defense against MITM attacks that exploit compromised or rogue Certificate Authorities. Normally, a TLS client accepts any certificate that chains to a trusted root CA. If a CA is compromised, an attacker can obtain a validly-signed certificate for any domain and use it for MITM. Pinning bypasses this by hard-coding a specific certificate or public key fingerprint into the client and refusing connections where the presented certificate does not match.
+
+Mobile applications are the most common implementation site. An iOS app that pins to a specific certificate will reject any TLS interception, including corporate proxy interception and researcher traffic analysis tools like Charles Proxy or Burp Suite. This is why mobile security researchers spend significant effort on ``bypassing'' certificate pinning.
+
+The operational risk is certificate rotation. TLS certificates have limited lifetimes (Let's Encrypt certificates expire after 90 days; even commercial certificates typically last 1--2 years). If you pin to a leaf certificate and rotate it before updating the app, all users on the old app version will lose connectivity. The safer pattern is to pin to the CA's \textit{intermediate} certificate public key (which rotates less frequently) rather than the leaf, and to always pin two keys: the current key and a backup, so that a rotation can be done without a flag day.
+
+In system design interviews, mention pinning as a pattern for high-security mobile applications, but acknowledge the operational burden. HTTP Public Key Pinning (HPKP) was a browser-based version of pinning that was deprecated in 2018 because its operational risks (a misconfiguration could lock users out of a site for months) outweighed the security benefit.
+\end{curiobox}
+
+\begin{curiobox}{What is mTLS and when do you need it instead of regular TLS?}
+Regular TLS (one-way TLS) authenticates only the server: the client verifies the server's certificate but presents no credential of its own. The server has no cryptographic proof of who the client is beyond what the client asserts in the application layer (a token, a cookie, an API key).
+
+Mutual TLS (mTLS) extends this by requiring the client to also present a certificate, which the server verifies. Both parties prove their identity cryptographically before any application data is exchanged. This means authentication happens at the transport layer, before the application sees the request, and it is unforgeable for clients that do not possess a valid certificate.
+
+mTLS is appropriate in three scenarios. First, \textbf{service-to-service communication} in a microservices architecture where you need to ensure that only authorized services can call each other --- not just any process that can reach the network. Second, \textbf{high-security B2B integrations} where a business partner connects to your API: instead of managing API keys, you issue the partner a client certificate tied to their organization's identity. Third, \textbf{Zero Trust network architectures} where network perimeter is not trusted and every connection must be authenticated regardless of source.
+
+The operational complexity of mTLS is its main drawback: you need a PKI (Public Key Infrastructure) to issue and manage client certificates, and certificate rotation must be automated or it becomes a significant operational burden. SPIFFE/SPIRE and service meshes like Istio were built specifically to make mTLS operationally tractable at scale, handling certificate issuance, distribution, and rotation automatically.
+\end{curiobox}
+
+% ── Section 11: Self-Quiz ─────────────────────────────────────────────────────
+\newpage
+\section{Self-Quiz}
+\addcontentsline{toc}{section}{Self-Quiz}
+
+\textit{These questions are framed as an interviewer would ask them. Answer each question as if you are in a live Apple ICT3 system design interview. Do not look at the answers until you have attempted all five questions.}
+
+\vspace{0.5cm}
+
+\begin{quizbox}{1}
+Your service exposes a REST API consumed by both mobile clients (human users) and third-party developer integrations (machine clients). How do you authenticate these two client types? Walk me through the tradeoffs --- specifically, why you chose what you chose and what risks remain.
+\end{quizbox}
+
+\vspace{0.4cm}
+
+\begin{quizbox}{2}
+A JWT access token is stolen from a compromised mobile device. The token has a 15-minute expiry. What is your threat model, and what options do you have to mitigate the damage? What are the tradeoffs of each option?
+\end{quizbox}
+
+\vspace{0.4cm}
+
+\begin{quizbox}{3}
+I see you are using OAuth 2.0 for authentication. Explain to me how OAuth 2.0 differs from API key authentication. Why would you choose OAuth over just issuing API keys to third-party developers?
+\end{quizbox}
+
+\vspace{0.4cm}
+
+\begin{quizbox}{4}
+During a code review you discover that your service's database password is stored in a \texttt{.env} file that has been committed to the Git repository. The repository is private, but it has 40 developers with access. Walk me through the risks and what you would do to fix the problem --- both immediately and long-term.
+\end{quizbox}
+
+\vspace{0.4cm}
+
+\begin{quizbox}{5}
+Explain TLS to me as if I am a senior engineer who understands networking but has not studied cryptography. What does TLS protect? What does it not protect? And in the context of a microservices system, where would you apply it?
+\end{quizbox}
+
+% ── Section 12: Model Answers ─────────────────────────────────────────────────
+\newpage
+\section*{Model Answers}
+\addcontentsline{toc}{section}{Model Answers}
+
+\begin{answerbox}{1}
+For human users on mobile clients, OAuth 2.0 Authorization Code flow with PKCE is the correct choice. PKCE is mandatory for mobile apps because they cannot safely store a client secret --- it would be embedded in the binary and extractable. The flow issues short-lived access tokens (15 min) and longer-lived refresh tokens (7--30 days). Tokens are stored in the device's secure enclave or keychain, not in plaintext storage. The risk profile: access token theft is limited to 15 minutes of exploit window; refresh token theft is more serious but can be mitigated by refresh token rotation (invalidating the old refresh token on each use).
+
+For third-party machine clients, I would offer both API keys and Client Credentials flow. API keys are appropriate for simple integrations where the developer is in control of a single application and wants minimal setup friction. Client Credentials (OAuth 2.0) is better for integrations that need scoped access, revocable tokens, or token expiry. The risk with API keys: they do not expire, so a leaked key is permanently valid until explicitly rotated. Scoped, short-lived tokens from Client Credentials reduce this blast radius.
+
+The remaining risk in both cases: token theft at the network or application layer. This is why TLS is non-negotiable --- tokens in transit over plain HTTP would be trivially stolen.
+\end{answerbox}
+
+\vspace{0.4cm}
+
+\begin{answerbox}{2}
+With a 15-minute expiry, the attacker has a maximum 15-minute window --- assuming the token was stolen immediately after issue. In practice, if the theft occurred midway through the token's life, the window is less.
+
+Option 1: \textbf{Do nothing and let it expire.} If the 15-minute window is acceptable for your threat model (e.g., the token has limited scopes), this is the operationally simplest choice. Risk: 15 minutes of unauthorized access.
+
+Option 2: \textbf{Token denylist.} Add the stolen token's \texttt{jti} (JWT ID) to a Redis denylist. All services check the denylist on each request. This provides immediate revocation but reintroduces a cache lookup per request. The denylist entry only needs to live until the token's natural expiry.
+
+Option 3: \textbf{Version-based invalidation.} Increment the user's token version in the database. All outstanding tokens for this user (including the stolen one) become invalid immediately on the next request. This requires a single database write, but all subsequent requests require a version lookup (though this can be cached with a short TTL).
+
+Option 4: \textbf{Invalidate the refresh token.} The stolen access token will expire naturally. Immediately revoke the user's refresh token so the attacker cannot obtain a new access token after expiry. Force the legitimate user to re-authenticate.
+
+A complete answer mentions all options, their tradeoffs, and what additional signals (unusual IP, unusual user agent) you might use to detect the theft before the token expires.
+\end{answerbox}
+
+\vspace{0.4cm}
+
+\begin{answerbox}{3}
+API keys are simple shared secrets: you generate a random string, the client includes it in every request, you look it up in your database. There is no expiry, no scope, no delegation. The client has all-or-nothing access to whatever your API provides (unless you implement custom scoping on top). API keys are not revocable without explicitly deleting them --- and there is no standard protocol, so every provider invents its own header format and lifecycle.
+
+OAuth 2.0 adds three things API keys cannot provide. First, \textbf{scoping}: an OAuth token can be constrained to specific operations (e.g., ``read calendar but not send email''). The user explicitly grants this scope during the authorization flow, and the client cannot exceed it. Second, \textbf{delegation}: OAuth enables a user to grant a third-party application access to their resources without sharing their password. This is impossible with API keys unless you build a bespoke delegation system. Third, \textbf{expiry and revocation}: tokens expire automatically and refresh tokens can be individually revoked, limiting the blast radius of a credential compromise.
+
+The tradeoff: OAuth 2.0 is significantly more complex to implement correctly. API keys are appropriate for server-to-server integrations where the client is controlled infrastructure and the simplicity benefit outweighs the security limitations. OAuth 2.0 is appropriate when you need user consent, scoped access, or interoperability with the broader ecosystem.
+\end{answerbox}
+
+\vspace{0.4cm}
+
+\begin{answerbox}{4}
+\textbf{Immediate actions:} First, rotate the database password immediately --- treat it as compromised from the moment of discovery. Generate a new password, update it in the database, and update any running services. Second, audit the Git history for any other secrets in the repository. Third, audit database access logs for any connections using the exposed credentials from any IP address that is not a known application server.
+
+\textbf{Removing from Git history:} Deleting the file in a new commit does not remove it from history. Use \texttt{git filter-repo} (the modern replacement for \texttt{git filter-branch}) to rewrite history and remove the file. Force-push the rewritten history and invalidate all developer forks. Acknowledge that any developer who cloned the repo before the rewrite may have the secret in their local clone.
+
+\textbf{Long-term fix:} Replace the \texttt{.env} pattern with a proper secret management solution. For production, use HashiCorp Vault or AWS Secrets Manager with dynamic secrets: the application authenticates to Vault using its Kubernetes service account or IAM role and receives a short-lived database credential. The database password never appears in any configuration file, environment variable, or deployment manifest. For local development, use a secrets manager CLI that fetches values into the local environment at runtime without writing them to disk.
+
+Additionally, add a pre-commit hook or CI pipeline check using a secret scanning tool (e.g., \texttt{detect-secrets}, \texttt{gitleaks}, or GitHub's built-in secret scanning) to prevent future credential commits.
+\end{answerbox}
+
+\vspace{0.4cm}
+
+\begin{answerbox}{5}
+TLS solves two problems simultaneously: confidentiality (no one can read the data in transit) and authentication (the client knows it is talking to the real server, not an impostor).
+
+The way it works: when your client connects to a server, the server presents a digital certificate --- a file that contains its public key and is cryptographically signed by a Certificate Authority that both parties trust. Your browser ships with a list of about 150 trusted CAs. If the certificate chains to one of those, your browser accepts the server's identity claim. The client and server then use asymmetric cryptography to agree on a shared symmetric encryption key (a session key) without that key ever appearing on the network. All subsequent data is encrypted with the session key, which is fast to compute.
+
+\textbf{What TLS protects:} eavesdropping on the wire (no one can read the encrypted bytes), tampering in transit (any modification breaks the cryptographic integrity check), and impersonation (the CA signature proves the server controls the domain). \textbf{What TLS does not protect:} data at rest on the server, insider threats (a DBA with direct database access bypasses TLS entirely), a compromised server (once the attacker is inside the server, TLS is already terminated), and traffic metadata (an observer can still see which IPs you are connecting to).
+
+In a microservices system: all external traffic (client to API gateway) uses standard TLS with valid CA-signed certificates. For service-to-service traffic inside the cluster, I would use mTLS (mutual TLS) via a service mesh like Istio, where both sides present certificates and verify each other's identity. This prevents a compromised internal service from impersonating another service. Secrets (database passwords, API keys) are managed through Vault or AWS Secrets Manager with short TTLs and automatic rotation.
+\end{answerbox}
+
+% ── Section 13: What's Next ───────────────────────────────────────────────────
+\newpage
+\section{What's Next}
+
+\begin{insightbox}
+\textbf{Next lesson: L1-13 --- Observability \& Monitoring.}
+
+You now know how to build systems that are secure by design: encrypted in transit with TLS 1.3, authenticated with the right mechanism for the trust model, authorized with the minimum necessary scope, and operating on secrets that rotate automatically and never appear in plaintext. But there is a gap in this picture.
+
+How do you know when something goes wrong?
+
+Observability is the engineering discipline that closes this loop. Metrics, distributed traces, and structured logs are not just operational tooling --- they are how you detect a security breach in progress. Anomalous authentication failure rates signal a credential stuffing attack. A spike in SSRF-pattern outbound requests signals a compromised workload. Sudden S3 read volume from an unexpected IAM role signals the Capital One scenario unfolding in real time.
+
+L1-13 covers the three pillars of observability (metrics, traces, logs), the infrastructure that collects and queries them (Prometheus, Grafana, Jaeger, OpenTelemetry, Elasticsearch), and how to instrument a distributed system to make debugging and incident response tractable. After L1-13, there is one remaining standalone lesson --- L1-14 on AI/ML Infrastructure Basics --- which closes out Layer 1. Completing all 14 lessons in Layer 1 unlocks Layer 2 (distributed systems patterns) and the first mock interview in Layer 3.
+
+The path to your first practice interview is: L1-13 (Observability) $\rightarrow$ L1-14 (AI/ML Infrastructure) $\rightarrow$ complete Gate 1 $\rightarrow$ L3-01 (Notification System --- your first mock interview, which tests everything from L1-01 through L1-12 directly).
+\end{insightbox}
+
+\vspace{1cm}
+\begin{center}
+\textcolor{gray}{\rule{0.4\textwidth}{0.4pt}}\\[0.3cm]
+{\small\textcolor{gray}{L1-12: Security Fundamentals --- System Design Curriculum --- 2025 Edition}}\\
+{\small\textcolor{gray}{Research sourced from Cloudflare Radar, OWASP, Let's Encrypt, GitGuardian, PortSwigger, and ACM}}
+\end{center}
+
+\end{document}
