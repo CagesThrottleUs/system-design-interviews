@@ -73,6 +73,7 @@
 \newtcolorbox{termbox}[1]{
   enhanced, breakable,
   colback=termbg, colframe=highlight, coltitle=white,
+  before upper={\sloppy},
   fonttitle=\bfseries\small, title={#1},
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
@@ -82,6 +83,7 @@
 \newtcolorbox{industrybox}[1]{
   enhanced, breakable,
   colback=greenbg, colframe=highlight!50!black, coltitle=white,
+  before upper={\sloppy},
   fonttitle=\bfseries\small, title={Industry Data: #1},
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
@@ -91,6 +93,7 @@
 \newtcolorbox{trapbox}[1]{
   enhanced,
   colback=accentlight, colframe=accent, coltitle=white,
+  before upper={\sloppy},
   fonttitle=\bfseries\small, title={Interview Trap: #1},
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
@@ -100,6 +103,7 @@
 \newtcolorbox{thinkbox}{
   enhanced,
   colback=notebg, colframe=accent!60,
+  before upper={\sloppy},
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   leftrule=3pt, rightrule=0pt, toprule=0pt, bottomrule=0pt,
 }
@@ -107,6 +111,7 @@
 \newtcolorbox{curiobox}[1]{
   enhanced, breakable,
   colback=curiobg, colframe=primary!60, coltitle=white,
+  before upper={\sloppy},
   fonttitle=\bfseries\small, title={Q: #1},
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
@@ -116,6 +121,7 @@
 \newtcolorbox{quizbox}{
   enhanced, breakable,
   colback=quizbg, colframe=highlight, coltitle=white,
+  before upper={\sloppy},
   fonttitle=\bfseries, title={Self-Quiz},
   left=10pt, right=10pt, top=8pt, bottom=8pt,
   attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
@@ -139,6 +145,7 @@
 }
 
 \setstretch{1.15}
+\setlength{\emergencystretch}{3em}
 
 % ── Document ──────────────────────────────────────────────────────────────────
 \begin{document}
@@ -221,7 +228,7 @@ APNs is the push delivery infrastructure Apple has operated since iPhone OS 3.0 
 
 \subsection{The device token: your routing address}
 
-When an iOS app calls \texttt{UIApplication.shared.registerForRemoteNotifications()}, the OS sends a request to APNs. APNs generates a \textbf{device token}: a unique, opaque byte string that identifies the combination of this specific device and this specific app. The OS delivers the token to your app via the \texttt{application(\_:didRegisterForRemoteNotificationsWithDeviceToken:)} delegate callback. Your app is responsible for forwarding this token to your backend server, which stores it.
+When an iOS app calls \texttt{UIApplication.shared.registerForRemoteNotifications()}, the OS sends a request to APNs. APNs generates a \textbf{device token}: a unique, opaque byte string that identifies the combination of this specific device and this specific app. The OS delivers the token to your app via the \texttt{application(\_:\allowbreak{}didRegisterForRemoteNotificationsWithDeviceToken:)} delegate callback. Your app is responsible for forwarding this token to your backend server, which stores it.
 
 \begin{termbox}{Device Token}
 An opaque byte string assigned by APNs that uniquely identifies a specific app installation on a specific device. It serves as the routing address for that app on that device. Your backend stores this token and includes it in every notification request to APNs. The token is not a device identifier; it is an app-instance identifier. The same device has different tokens for different apps.
@@ -311,7 +318,7 @@ If you omit \texttt{apns-expiration} or set it to a nonzero value, APNs stores t
 
 \subsection{Silent (background) notifications}
 
-Sometimes you want to wake your app to refresh data without showing anything to the user. APNs supports this through silent push notifications. The payload includes \texttt{"content-available": 1} in the \texttt{aps} dictionary. The \texttt{apns-push-type} header must be set to \texttt{background}. The \texttt{apns-priority} header must be 5. When this notification arrives, iOS wakes your app in the background and calls \texttt{application(\_:didReceiveRemoteNotification:fetchCompletionHandler:)}. Your app gets a limited CPU window (typically 30 seconds) to fetch new data. The user sees nothing.
+Sometimes you want to wake your app to refresh data without showing anything to the user. APNs supports this through silent push notifications. The payload includes \texttt{"content-available": 1} in the \texttt{aps} dictionary. The \texttt{apns-push-type} header must be set to \texttt{background}. The \texttt{apns-priority} header must be 5. When this notification arrives, iOS wakes your app in the background and calls \texttt{application(\_:didReceiveRemoteNotification:\allowbreak{}fetchCompletionHandler:)}. Your app gets a limited CPU window (typically 30 seconds) to fetch new data. The user sees nothing.
 
 Starting with iOS 13, the \texttt{apns-push-type} header became required for all requests. Omitting it or using a mismatched value (e.g., \texttt{background} type with priority 10) causes APNs to delay or silently drop the notification. This is a common source of mysterious notification delivery failures in production systems that were built before iOS 13.
 
