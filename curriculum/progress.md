@@ -3,8 +3,9 @@
 ## Current Position
 
 **Layer:** 1 — Foundations  
-**Next Lesson:** L1-02 — Push Delivery: APNs & FCM  
-**Reason:** Directly fixes the session_001 critical gap (device token, persistent OS-level connection, store-and-forward). Builds on L1-01 persistent connection knowledge.
+**Current Lesson:** L1-02 — Push Delivery: APNs & FCM (PDF delivered 2026-04-30)
+**Next Lesson:** L1-08 — Message Queues & Streaming  
+**Reason:** L1-02 directly fixes the session_001 critical gap (device token, OS-level relay, store-and-forward). L1-08 is the final Gate 1 prerequisite before the Notification System retry mock.
 
 ## Completed Lessons
 

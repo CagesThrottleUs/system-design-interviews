@@ -161,3 +161,42 @@ templates/
 | Company | Role | Level |
 |---------|------|-------|
 | Apple   | Software Engineer | ICT3 |
+
+---
+
+## Curriculum Status
+
+Full map: [`curriculum/00_overview.md`](curriculum/00_overview.md)  
+Current position + gaps: [`curriculum/progress.md`](curriculum/progress.md)
+
+### Layer 1 — Foundations (current layer)
+
+| Lesson | Topic | Status | PDF |
+|--------|-------|--------|-----|
+| L1-01 | Networking: TCP, UDP, HTTP, WebSockets | ✅ Complete | [L1-01-networking.tex](curriculum/layer1-foundations/L1-01-networking.tex) |
+| L1-02 | Push Delivery: APNs & FCM | 🔄 In Progress | [L1-02-push-delivery.tex](curriculum/layer1-foundations/L1-02-push-delivery.tex) |
+| L1-03 | DNS & CDN | ☐ | — |
+| L1-04 | Load Balancing | ☐ | — |
+| L1-05 | Databases — Relational | ☐ | — |
+| L1-06 | Databases — NoSQL | ☐ | — |
+| L1-07 | Caching | ☐ | — |
+| L1-08 | Message Queues & Streaming | ☐ | — |
+| L1-09 | Storage: Blob & Object | ☐ | — |
+| L1-10 | Distributed Systems Fundamentals | ☐ | — |
+| L1-11 | API Design | ☐ | — |
+| L1-12 | Security Fundamentals | ☐ | — |
+| L1-13 | Observability & Monitoring | ☐ | — |
+| L1-14 | AI/ML Infrastructure Basics | ☐ | — |
+
+### Mock Interview Gates
+
+| Gate | Unlock After | Questions Unlocked | Status |
+|------|-------------|-------------------|--------|
+| Gate 1 | L1-01 ✅ + L1-02 🔄 + L1-08 ☐ | L3-01 Notification System retry | 1/3 done |
+| Gate 2 | Gate 1 + L1-05/06/07/11 | L3-02 URL Shortener, L3-04 Rate Limiter | Locked |
+| Gate 3 | Gate 2 + L1-03/04/10 + L2-01/02 | L3-03 Feed, L3-05 Crawler, L3-09 Chat | Locked |
+| Gate 4 | Gate 3 + L1-09 + L2-05/06/10 | L3-06/07/08 | Locked |
+| Gate 5 | Gate 4 + L1-12/13 + L2-04/08/09/11 | L3-10 through L3-13 | Locked |
+| Gate 6 | Gate 5 + L1-14 + L2-12/13 | L3-14 through L3-19 | Locked |
+
+**Recommended next:** Complete L1-02 → L1-08 to unlock Gate 1.

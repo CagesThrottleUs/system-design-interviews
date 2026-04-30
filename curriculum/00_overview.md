@@ -26,7 +26,7 @@ If you don't know these, your HLD will have fundamental errors (e.g., device-as-
 | # | Topic | Status | Key Concepts |
 |---|-------|--------|--------------|
 | L1-01 | Networking: TCP, UDP, HTTP, WebSockets | ✅ | persistent connection, port, handshake, HTTP/1 vs HTTP/2, polling vs push |
-| L1-02 | Push Delivery: APNs & FCM | ☐ | device token, persistent OS-level connection, store-and-forward, port 5223 |
+| L1-02 | Push Delivery: APNs & FCM | 🔄 | device token, persistent OS-level connection, store-and-forward, port 5223 |
 | L1-03 | DNS & CDN | ☐ | TTL, edge caching, origin server, cache invalidation, anycast |
 | L1-04 | Load Balancing | ☐ | L4 vs L7, round-robin, least-connections, consistent hashing, health checks |
 | L1-05 | Databases — Relational | ☐ | ACID, B-tree index, primary-replica replication, read replica, sharding |

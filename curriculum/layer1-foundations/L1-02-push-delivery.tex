@@ -1,0 +1,527 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[top=2.8cm, bottom=2.8cm, left=3cm, right=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=accent,
+            pdftitle={L1-02 Push Delivery -- APNs and FCM},
+            bookmarks=true]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{array}
+\usepackage{longtable}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{lightbg}{HTML}{F4F6F7}
+\definecolor{warnbg}{HTML}{FEF9E7}
+\definecolor{quizbg}{HTML}{EBF5FB}
+\definecolor{termbg}{HTML}{EAF2FF}
+\definecolor{curiobg}{HTML}{F5EEF8}
+\definecolor{greenbg}{HTML}{EAFAF1}
+\definecolor{notebg}{HTML}{FDF2E9}
+\definecolor{accentlight}{HTML}{FADBD8}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}
+  {\large\bfseries\color{highlight}}
+  {\thesection.}{0.6em}{}
+  [\vspace{2pt}\color{highlight!60}\rule{\linewidth}{0.6pt}]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{primary}}
+  {\thesubsection}{0.5em}{}
+
+\titleformat{\subsubsection}
+  {\normalsize\itshape\color{primary!80}}
+  {}{0em}{}
+
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+\titlespacing{\subsubsection}{0pt}{8pt}{2pt}
+
+% ── Header/Footer ─────────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{highlight}\textbf{L1-02 --- Push Delivery: APNs \& FCM}}
+\fancyhead[R]{\small\color{primary!70}System Design Interview Prep}
+\fancyfoot[C]{\small\color{primary!60}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{highlight!40}\leaders\hrule height \headrulewidth\hfill}}
+
+% ── Box environments ──────────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable, hooks}
+
+\newtcolorbox{termbox}[1]{
+  enhanced, breakable,
+  colback=termbg, colframe=highlight, coltitle=white,
+  fonttitle=\bfseries\small, title={#1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{industrybox}[1]{
+  enhanced, breakable,
+  colback=greenbg, colframe=highlight!50!black, coltitle=white,
+  fonttitle=\bfseries\small, title={Industry Data: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight!60!black, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{trapbox}[1]{
+  enhanced,
+  colback=accentlight, colframe=accent, coltitle=white,
+  fonttitle=\bfseries\small, title={Interview Trap: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=accent, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{thinkbox}{
+  enhanced,
+  colback=notebg, colframe=accent!60,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  leftrule=3pt, rightrule=0pt, toprule=0pt, bottomrule=0pt,
+}
+
+\newtcolorbox{curiobox}[1]{
+  enhanced, breakable,
+  colback=curiobg, colframe=primary!60, coltitle=white,
+  fonttitle=\bfseries\small, title={Q: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=primary!70, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{quizbox}{
+  enhanced, breakable,
+  colback=quizbg, colframe=highlight, coltitle=white,
+  fonttitle=\bfseries, title={Self-Quiz},
+  left=10pt, right=10pt, top=8pt, bottom=8pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{answerbox}{
+  enhanced, breakable,
+  colback=lightbg, colframe=primary!40, coltitle=white,
+  fonttitle=\bfseries\small, title={Model Answers},
+  left=10pt, right=10pt, top=8pt, bottom=8pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=primary!60, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{insightbox}{
+  enhanced,
+  colback=primary!5, colframe=primary,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  leftrule=4pt, rightrule=0.4pt, toprule=0.4pt, bottomrule=0.4pt,
+}
+
+\setstretch{1.15}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+\vspace*{2cm}
+\begin{center}
+  {\color{primary}\rule{\linewidth}{3pt}}\\[12pt]
+  {\huge\bfseries\color{highlight} L1-02}\\[6pt]
+  {\Huge\bfseries\color{primary} Push Delivery: APNs \& FCM}\\[10pt]
+  {\large\color{primary!70} Device Tokens, OS-Level Connections, and the Relay Architecture That Powers 2 Billion Phones}\\[20pt]
+  {\color{primary}\rule{\linewidth}{1pt}}\\[16pt]
+  {\normalsize\color{primary!70}
+    \textit{Layer 1 --- Foundations} \quad\textbullet\quad
+    \textit{System Design Interview Preparation} \quad\textbullet\quad
+    \textit{2026 Edition}
+  }\\[8pt]
+  {\small\color{primary!60} Industry data sourced from Apple earnings, Firebase engineering blog, Knock benchmarks, Android developer docs (2023--2025)}
+\end{center}
+\vfill
+\begin{insightbox}
+\textbf{Why this lesson exists.} In your session\_001 diagnostic, the critical gap was the APNs/FCM delivery model. You scored 9/25 partly because the design assumed the backend could push directly to a device. That assumption fails at every layer: there is no public IP, no stable address, and no battery budget for what you proposed. This lesson closes that gap completely. After reading it, you will be able to draw the full three-party architecture from memory, name every component with precision, and explain why the relay model is the only model that scales to two billion devices.
+
+This document is self-contained. Every statistic comes from a published primary source. The Curiosity Corner answers the deeper questions you will naturally ask while reading.
+\end{insightbox}
+\vspace{1cm}
+\tableofcontents
+\end{titlepage}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Why This Problem Is Harder Than It Looks}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Imagine you are building a chat app. A user sends a message. The recipient's phone is locked, the app is not running, and the screen is off. Your backend server needs to wake that phone and show the message. How?
+
+The na\"{i}ve instinct is to connect directly: your server opens a TCP connection to the recipient's device and writes the notification over it. This is intuitive, it works for servers talking to other servers, and it is completely wrong for mobile devices. Understanding \emph{why} it fails is the foundation of this entire lesson.
+
+\subsection{Three reasons you cannot connect directly to a mobile device}
+
+\textbf{No public IP address.} Mobile devices sit behind carrier-grade NAT (CGNAT). When your phone connects to an LTE or 5G network, the carrier assigns it a private IP in the \texttt{10.0.0.0/8} or \texttt{100.64.0.0/10} range. Your server, sitting on the public internet, cannot route a packet to that address. There is no path. This is not a configuration problem you can fix --- it is a fundamental property of how cellular networks work at scale. Billions of devices cannot each have a globally routable IP address; the IPv4 address space ran out in 2011.
+
+\textbf{Battery.} Every radio transmission drains the battery. If your app kept a dedicated TCP connection alive to receive notifications, the radio would never fully sleep. Multiply this by the 50--100 apps installed on a typical phone: each one maintaining its own persistent connection would drain a phone battery in hours. The OS vendors solved this by designating a single OS-level connection for all notification delivery across all apps simultaneously. Your app does not get its own connection; it shares Apple's or Google's.
+
+\textbf{Dynamic IP and network switching.} Even if a device had a public IP right now, that address changes every time the device switches networks (WiFi to LTE, one cell tower to another). There is no stable address you could pre-register with your server to dial into later.
+
+\begin{trapbox}{The Device-as-Server Anti-Pattern}
+The mistake: designing your notification system so the backend opens a connection \emph{to} the device. You cannot do this. Devices cannot receive unsolicited inbound connections from the public internet. The correct mental model is the inverse: the \textbf{device always initiates the connection outward}, to Apple's or Google's infrastructure. Your backend sends to that infrastructure, which relays the message over the existing outbound connection from the device.
+
+In interviews, the moment you say ``the server connects to the device'' you will be interrupted and marked down. The correct answer is: ``The device maintains a persistent outbound connection to APNs or FCM. My backend sends to their provider API, and they relay to the device.''
+\end{trapbox}
+
+The solution that actually works is a relay. Apple runs APNs (Apple Push Notification service); Google runs FCM (Firebase Cloud Messaging). Each operates a global infrastructure that bridges your backend to devices. Your backend never touches the device directly. It sends to Apple or Google, and they handle the last mile.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{The Three-Party Architecture}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Every mobile push notification, for every app on every iPhone and Android phone in the world, flows through the same three-party architecture. Understanding the three parties and what each one is responsible for is the entire lesson in one mental model.
+
+\begin{center}
+\textbf{[Your Backend]} \quad$\longrightarrow$\quad \textbf{[APNs / FCM Gateway]} \quad$\longrightarrow$\quad \textbf{[Device OS]} \quad$\longrightarrow$\quad \textbf{[Your App]}
+\end{center}
+
+\textbf{Party 1: Your backend.} This is your notification service, your backend API, your message queue consumer --- whatever code decides that a notification should be sent. It knows the recipient's device token (more on this shortly), the content of the message, and the priority. It does not know the device's IP address or how to reach it. It sends an HTTP/2 request to Apple's or Google's provider API.
+
+\textbf{Party 2: APNs or FCM.} Apple and Google each run a globally distributed gateway that does two things. First, it accepts delivery requests from your backend (the provider API). Second, it maintains persistent connections to every device in the world (the device-facing channel). When your backend sends a notification, the gateway accepts it, looks up which connection the target device is on, and relays the message.
+
+\textbf{Party 3: The device OS.} iOS or Android maintains the persistent outbound connection to Apple's or Google's gateway. This is not your app. It is the operating system itself. The OS receives the notification over this connection and decides how to handle it --- display an alert, badge an icon, play a sound, or quietly wake your app in the background. Your app gets called only after the OS has processed the delivery.
+
+\begin{insightbox}
+The relay model is not just an architecture choice. It is what makes push notifications work at planetary scale. Apple had 2.35 billion active devices as of January 2025 (Tim Cook, Apple earnings). Google's FCM delivered 115 billion notifications to 400 million users during the 2022 FIFA World Cup tournament alone (Firebase Blog, May 2023). Neither number would be achievable without the relay model concentrating connection management in one place rather than distributing it across every app backend in the world.
+\end{insightbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{APNs: Apple Push Notification Service}
+% ─────────────────────────────────────────────────────────────────────────────
+
+APNs is the push delivery infrastructure Apple has operated since iPhone OS 3.0 in 2009. Every push notification delivered to an iPhone, iPad, Mac, Apple Watch, or Apple TV flows through it. Understanding APNs thoroughly means understanding three separate connections and the token that links them.
+
+\subsection{The device token: your routing address}
+
+When an iOS app calls \texttt{UIApplication.shared.registerForRemoteNotifications()}, the OS sends a request to APNs. APNs generates a \textbf{device token}: a unique, opaque byte string that identifies the combination of this specific device and this specific app. The OS delivers the token to your app via the \texttt{application(\_:didRegisterForRemoteNotificationsWithDeviceToken:)} delegate callback. Your app is responsible for forwarding this token to your backend server, which stores it.
+
+\begin{termbox}{Device Token}
+An opaque byte string assigned by APNs that uniquely identifies a specific app installation on a specific device. It serves as the routing address for that app on that device. Your backend stores this token and includes it in every notification request to APNs. The token is not a device identifier; it is an app-instance identifier. The same device has different tokens for different apps.
+\end{termbox}
+
+The device token is stable under normal conditions but can be invalidated. If the user uninstalls the app, APNs eventually marks the token as \texttt{BadDeviceToken}. If the device is wiped or restored from backup, a new token is issued. APNs does not invalidate tokens instantly after uninstall --- it may return success for a brief window before marking the token invalid. This is why production systems use APNs feedback channels or handle \texttt{BadDeviceToken} errors to prune stale tokens from their database.
+
+\begin{thinkbox}
+\textbf{Why is the token opaque?} Apple deliberately makes device tokens non-interpretable by app developers. You cannot decode a token to extract the device model, OS version, or any user identifier. This is a privacy boundary. The token tells you \emph{where} to send, not \emph{who} is there. Your own user-to-token mapping is something you maintain, not something encoded in the token itself.
+\end{thinkbox}
+
+\subsection{The device-to-APNs connection (port 5223)}
+
+The most important connection in the entire architecture is the one your code never touches: the persistent TLS TCP connection from the device OS to Apple's APNs servers on \textbf{port 5223}.
+
+This connection is owned and managed by iOS, not by your app. It is established when the device boots and the network becomes available, and iOS maintains it automatically. When the device switches from WiFi to LTE, iOS tears down the old connection and re-establishes a new one. When the device goes into low-power mode, the connection is maintained but the radio may idle. When a notification arrives over this connection, the OS wakes up enough to process it, even if the device appeared fully asleep.
+
+The critical design insight here is that this one connection is \textbf{shared across every app on the device}. An iPhone with 100 apps installed does not maintain 100 connections to APNs --- it maintains one. Every app's notifications are multiplexed over that single OS-level channel. This is how Apple achieves both scale (billions of devices connected) and battery efficiency (one radio activation for all apps, not one per app).
+
+\begin{industrybox}{APNs Network Ports}
+APNs uses port 5223 (TLS/TCP) for the persistent device-to-APNs connection. Port 443 is the fallback if port 5223 is blocked --- Apple designed this so corporate firewalls that only permit HTTPS traffic do not break push notifications. Port 443 is also what your backend uses to send to the APNs provider API (HTTP/2). Port 2197 is an alternate provider API port for situations where your firewall blocks outbound 443 for other reasons. Source: Apple Developer Documentation, Apple Support deployment guide.
+\end{industrybox}
+
+\subsection{The provider API: backend to APNs (HTTP/2)}
+
+When your backend wants to deliver a notification, it sends an HTTP/2 POST request to Apple's provider API. The endpoint is:
+
+\begin{center}
+\texttt{POST https://api.push.apple.com/3/device/\{deviceToken\}}
+\end{center}
+
+Every request must include a JSON payload (the notification content), a set of required HTTP headers, and authentication credentials. Apple evaluates the request and either accepts it (returns 200) or rejects it with an error code. If accepted, Apple queues the notification for delivery to the device over the port 5223 channel.
+
+The HTTP/2 requirement matters in practice: your backend must maintain a persistent HTTP/2 connection to APNs rather than opening a new TLS connection per notification. Connection setup (TLS handshake + HTTP/2 SETTINGS frame) costs hundreds of milliseconds. At scale, opening a new connection for each notification would make the overhead dominate the actual delivery time. Production systems maintain a connection pool to the APNs endpoint.
+
+\subsection{Authentication: token-based vs certificate-based}
+
+Your backend must prove to APNs that it is authorized to send notifications for your app. There are two methods. Certificate-based auth (the older approach) uses an SSL certificate that must be renewed annually, is scoped to a single app, and requires a persistent TLS connection with the certificate embedded. Token-based auth (the current recommended approach) uses a \texttt{.p8} private key file issued via the Apple Developer Portal, which does not expire.
+
+\begin{termbox}{APNs Token-Based Authentication (.p8)}
+Your backend signs a JSON Web Token (JWT) using the \texttt{.p8} private key and the ES256 algorithm (ECDSA P-256 + SHA-256). The JWT payload contains your 10-character Apple Team ID and an issued-at timestamp. APNs validates the signature using the corresponding public key it holds on file. JWTs are valid for \textbf{exactly one hour}; your backend should refresh every 20--40 minutes to avoid the \texttt{ExpiredProviderToken} error. Do not generate a new token per request --- create one, reuse it, refresh before expiry.
+\end{termbox}
+
+Token-based auth is superior to certificate-based for several reasons. One \texttt{.p8} key covers all apps in your developer account (one credential to manage, not one per app). The key does not expire (the JWTs it generates expire, but the key itself does not). The stateless JWT model is faster at the APNs end because Apple does not need to look up certificate state. And if a static server key leaks, it must be revoked and reissued with downtime; if a JWT access token leaks, it is invalid within an hour.
+
+\subsection{Payload structure and size limits}
+
+The notification payload is a JSON dictionary sent as the HTTP/2 request body. The mandatory structure looks like this:
+
+\begin{verbatim}
+{
+  "aps": {
+    "alert": {
+      "title": "New message",
+      "body":  "Sarah: are you coming tonight?"
+    },
+    "badge": 3,
+    "sound": "default"
+  },
+  "custom_key": "any value your app needs"
+}
+\end{verbatim}
+
+The \texttt{aps} dictionary is APNs's reserved namespace. Everything under \texttt{aps} controls system behavior (display, badge count, sound). Everything outside \texttt{aps} is your app's arbitrary data, delivered alongside the notification for your app to read when it launches.
+
+\begin{industrybox}{APNs Payload Size Limits}
+Regular notifications (HTTP/2 API): maximum \textbf{4 KB (4,096 bytes)}. VoIP notifications: maximum \textbf{5 KB (5,120 bytes)}. The older legacy binary APNs interface had a 2 KB limit --- this limit occasionally appears in old StackOverflow answers and outdated books; the current limit is 4 KB. Source: Apple Developer Archive, ``Creating the Notification Payload.'' This number appears in interviews.
+\end{industrybox}
+
+\subsection{Priority: immediate vs power-saving}
+
+Every APNs request includes an \texttt{apns-priority} header with value 10 or 5.
+
+\textbf{Priority 10 (immediate delivery)} is the default for visible notifications. APNs delivers the message as fast as possible, waking the device if needed. Use this for alerts, sounds, and badge updates --- anything the user expects to see promptly.
+
+\textbf{Priority 5 (power-saving)} tells APNs to defer delivery to a time when the device is naturally active, such as when the user unlocks the screen or when iOS decides conditions are favorable. Background (silent) notifications must use priority 5. If you send a background notification with priority 10, APNs will silently downgrade or reject it. The rule is: if no UI is shown to the user, use priority 5.
+
+\subsection{Store-and-forward: notifications for offline devices}
+
+APNs does not discard your notification if the target device is offline. It queues the notification in a store-and-forward buffer and delivers it when the device reconnects. The duration of this buffering is controlled by the \texttt{apns-expiration} header, which is a Unix epoch timestamp after which the notification should be discarded.
+
+If you omit \texttt{apns-expiration} or set it to a nonzero value, APNs stores the notification for \textbf{up to 30 days}. If you set \texttt{apns-expiration: 0}, the notification is ephemeral: APNs attempts delivery once and discards it immediately if the device is offline. Use \texttt{apns-expiration: 0} for time-sensitive actions like ``incoming call'' alerts, where a 30-day-old ring is not just useless but actively confusing.
+
+\begin{thinkbox}
+\textbf{What if you send 50 notifications while the device is offline?} By default, APNs queues all 50 and delivers them when the device reconnects. If you want only the latest version of a notification (for example, a score update in a sports app), use the \texttt{apns-collapse-id} header. Set the same collapse ID on all score-update notifications, and APNs retains only the most recent one per collapse key. When the device reconnects, it receives one notification (the final score) rather than 50 intermediate updates.
+\end{thinkbox}
+
+\subsection{Silent (background) notifications}
+
+Sometimes you want to wake your app to refresh data without showing anything to the user. APNs supports this through silent push notifications. The payload includes \texttt{"content-available": 1} in the \texttt{aps} dictionary. The \texttt{apns-push-type} header must be set to \texttt{background}. The \texttt{apns-priority} header must be 5. When this notification arrives, iOS wakes your app in the background and calls \texttt{application(\_:didReceiveRemoteNotification:fetchCompletionHandler:)}. Your app gets a limited CPU window (typically 30 seconds) to fetch new data. The user sees nothing.
+
+Starting with iOS 13, the \texttt{apns-push-type} header became required for all requests. Omitting it or using a mismatched value (e.g., \texttt{background} type with priority 10) causes APNs to delay or silently drop the notification. This is a common source of mysterious notification delivery failures in production systems that were built before iOS 13.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{FCM: Firebase Cloud Messaging}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Google's Firebase Cloud Messaging (FCM) is the Android equivalent of APNs, though it also supports iOS and web. The architectural principles are identical to APNs: a relay model, device-owned registration tokens, an OS-managed persistent connection, and a provider API your backend calls. The details differ in meaningful ways.
+
+\subsection{Registration tokens and their lifecycle}
+
+When an Android app initializes the FCM SDK for the first time, FCM generates a \textbf{registration token} for that app instance. Unlike an APNs device token, an FCM registration token is project-scoped: it is tied to your Firebase project, not to the device globally. Two apps on the same device belonging to different Firebase projects have registration tokens with no relationship to each other.
+
+Registration tokens do not have a fixed expiry date, but FCM marks tokens as stale after \textbf{270 days of inactivity} (no FCM connection from that app instance). Stale tokens are rejected when you try to send to them. Tokens are also refreshed when the user reinstalls the app, clears app data, or restores a factory reset. The FCM SDK provides an \texttt{onTokenRefresh} callback; your app should send the new token to your backend whenever this fires.
+
+\begin{industrybox}{FCM Token Staleness (2023)}
+Google published updated guidance on token management in April 2023 (Firebase Blog, ``Managing Cloud Messaging Tokens''). The guidance: retrieve the current token at every app start, record a timestamp alongside it in your backend, and treat tokens unseen for more than 270 days as stale. Proactively removing stale tokens improves your deliverability metrics and reduces wasted API calls. The 270-day threshold is a Google recommendation, not a hard expiry.
+\end{industrybox}
+
+\subsection{The FCM HTTP v1 API and the 2024 migration}
+
+In June 2023, Google deprecated the FCM legacy HTTP API (the \texttt{/fcm/send} endpoint). On July 22, 2024, the legacy API was shut down. If your backend was still using the legacy endpoint after that date, your notifications stopped being delivered. This shutdown affected a significant portion of the mobile app ecosystem.
+
+The difference matters architecturally. The legacy API used a static \textbf{Server Key} for authentication: a long-lived string stored on your server. If this key leaked, an attacker could send push notifications on your behalf indefinitely until you revoked and replaced the key. The HTTP v1 API replaced the Server Key with short-lived \textbf{OAuth 2.0 access tokens} obtained from a service account. These tokens expire in one hour. A leaked access token is exploitable for at most an hour before it expires.
+
+\begin{termbox}{FCM HTTP v1 API Authentication}
+Your backend uses a service account JSON key to call Google's token service and obtain an OAuth 2.0 Bearer token scoped to \texttt{https://www.googleapis.com/auth/firebase.messaging}. This token is valid for one hour. You include it as an \texttt{Authorization: Bearer <token>} header in your FCM API requests. The endpoint is \texttt{POST https://fcm.googleapis.com/v1/projects/\{project\_id\}/messages:send}. Refresh the token before expiry, do not generate a new one per notification request.
+\end{termbox}
+
+The v1 API also introduced per-platform override blocks, allowing you to send one canonical message to FCM and include Android-specific, Apple-specific, and Web-specific overrides in the same request. The legacy API required you to send platform-specific requests separately or sacrifice per-platform customization.
+
+\subsection{Notification messages vs data messages}
+
+FCM has two payload types that behave differently depending on whether the app is in the foreground or background.
+
+\textbf{Notification messages} are handled by the FCM SDK automatically. When the app is in the background, FCM SDK shows the notification in the system tray without waking your app code. When the user taps the notification, the app opens and receives the data. When the app is in the foreground, the \texttt{onMessageReceived()} callback fires and your app handles display.
+
+\textbf{Data messages} are always delivered to your app's \texttt{onMessageReceived()} callback, regardless of foreground/background state. When the app is killed, the message waits and is delivered when the app next launches. Data messages give you full control over rendering and logic, at the cost of needing your own display code.
+
+You can combine both: include a \texttt{notification} payload for automatic system display and a \texttt{data} payload for your app's business logic. When the user taps a combined-payload notification from the background, both payloads arrive at your app code.
+
+\subsection{Android Doze mode and high-priority messages}
+
+Android's Doze mode (introduced in Android 6.0, 2015) aggressively batches network activity when the device is idle: screen off, stationary, and unplugged. In Doze mode, normal-priority FCM messages are deferred to maintenance windows that occur infrequently. This is intentional --- it dramatically extends battery life.
+
+For user-facing notifications that must arrive promptly regardless of Doze state, set FCM message priority to \textbf{high}. High-priority messages bypass Doze, wake the device from sleep, and give your app a brief window of CPU and network access. FCM monitors how apps use high priority: if your app consistently sends high-priority messages that do not result in visible notifications or meaningful user activity, FCM may automatically downgrade your messages. The mechanism is designed to prevent abuse of the ``wake the device'' privilege.
+
+\begin{industrybox}{FCM at World Cup Scale (Firebase Blog, May 2023)}
+During the Argentina-France 2022 FIFA World Cup Final, FCM handled a peak of \textbf{46 million queries per second} at kick-off, against a baseline of 18 million QPS. Over the entire tournament, FCM delivered \textbf{115 billion notifications to 400 million users}. The architecture that made this possible: horizontal scaling of the FCM gateway tier, consistent hashing to distribute device connections across gateway nodes, and the relay model that isolates backend provider load from device delivery load.
+\end{industrybox}
+
+\subsection{FCM message TTL}
+
+The FCM equivalent of APNs's \texttt{apns-expiration} is the \texttt{ttl} field (time-to-live in seconds). The default is 4 weeks (2,419,200 seconds). The maximum is also 4 weeks. Setting \texttt{ttl: 0} makes the message ephemeral: if the device is offline at the moment of delivery, the message is discarded immediately without store-and-forward.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Choosing Between APNs, FCM, and Alternatives}
+% ─────────────────────────────────────────────────────────────────────────────
+
+For system design interviews, the platform choice is dictated by the target device. APNs is mandatory for iOS/macOS/watchOS devices; you cannot send a push notification to an iPhone without going through APNs. FCM is the standard for Android and is also usable for iOS (FCM can relay to APNs on your behalf, abstracting the two APIs behind one). Web Push (RFC 8030 + VAPID) handles browser notifications on desktop and Android Chrome.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{>{\bfseries}p{3.2cm}p{3.5cm}p{3.5cm}p{3.5cm}}
+\toprule
+ & \textbf{APNs} & \textbf{FCM} & \textbf{Web Push} \\
+\midrule
+Platform & iOS, macOS, watchOS, tvOS & Android, iOS (relay), Web & Desktop browsers, Android Chrome \\
+Auth model & JWT (.p8 key, ES256) & OAuth 2.0 service account & VAPID keypair \\
+Payload limit & 4 KB & No fixed limit (practical: a few KB) & 4 KB \\
+Default TTL & 30 days & 28 days & 28 days \\
+Offline storage & Yes (store-and-forward) & Yes & Yes \\
+Silent push support & Yes (\texttt{content-available}) & Yes (data message) & No \\
+Priority levels & 10 (immediate), 5 (power) & high, normal & urgency hint \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For most production systems targeting both iOS and Android, the architecture is: maintain separate APNs and FCM token databases per user, fan out notifications to both providers in parallel, handle delivery errors per platform, and prune stale tokens on failure responses.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Critical Numbers Reference}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{4.5cm}p{5.5cm}p{4cm}}
+\toprule
+\textbf{Number} & \textbf{What It Means} & \textbf{Source / Year} \\
+\midrule
+Port 5223 & Device $\to$ APNs persistent TLS TCP & Apple Support \\
+Port 443 & Backend $\to$ APNs HTTP/2 provider API & Apple Developer Docs \\
+4 KB & APNs max payload (HTTP/2, regular) & Apple Developer Docs \\
+5 KB & APNs max payload (VoIP) & Apple Developer Docs \\
+30 days & APNs store-and-forward TTL (default) & Apple Developer Docs \\
+1 hour & APNs JWT provider token validity & Apple Developer Docs \\
+2.35 billion & Active Apple devices (Jan 2025) & Apple earnings, Jan 2025 \\
+46 million QPS & FCM peak (2022 World Cup Final) & Firebase Blog, May 2023 \\
+115 billion & FCM notifications, 2022 World Cup & Firebase Blog, May 2023 \\
+28 days & FCM max / default TTL & Firebase Docs \\
+270 days & FCM token stale threshold & Firebase Blog, Apr 2023 \\
+Jul 22 2024 & FCM legacy API shutdown date & Google / Firebase \\
+59 ms / 79 ms & APNs vs FCM p50 delivery latency & Knock Benchmarks, 2026 \\
+102 ms / 149 ms & APNs vs FCM p90 delivery latency & Knock Benchmarks, 2026 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Design Application}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Application 1: Notification System (L3-01)}
+
+This is the lesson's primary interview application. In your session\_001 design, the backend attempted to push directly to devices. The correct architecture after this lesson:
+
+Your backend sends a delivery request to APNs (for iOS devices) or FCM (for Android devices) via HTTP/2. The gateway accepts the request, locates the target device's persistent outbound connection on port 5223 (APNs) or its XMPP channel (FCM), and relays the message. The device OS receives it, wakes the appropriate app if needed, and triggers the notification display.
+
+Key decisions this lesson unlocks: store device tokens in your database per user per device; fan out to both APNs and FCM if a user has multiple devices; use separate queues or workers per provider to handle their independent rate limits and error formats; prune \texttt{BadDeviceToken} errors from APNs immediately to keep your token database clean.
+
+\subsection{Application 2: Chat System (L3-09)}
+
+Chat apps like WhatsApp and Telegram face a specific push delivery challenge: the app is almost always open on at least one device, but notifications must be delivered to locked devices too. The pattern is: deliver the message over the real-time channel (WebSocket, as covered in L1-01) when the app is connected; fall back to APNs/FCM when the WebSocket connection is absent. The two delivery paths are complements, not alternatives.
+
+\subsection{Application 3: Multi-Device Notification Fanout}
+
+A user's account typically has multiple devices: an iPhone, an iPad, a MacBook. When you need to notify a user (not a device), you must fan out to all registered tokens for that user. The naive approach is sequential: send to device 1, wait for response, send to device 2. The correct approach is parallel fanout: send to all devices concurrently, collect responses, handle failures per token. This matters for latency and for handling mixed token states (some valid, some stale) without one stale token blocking delivery to the valid ones.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Curiosity Corner}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{curiobox}{Is the APNs persistent connection (port 5223) SSE or WebSockets?}
+Neither. SSE (Server-Sent Events) is an HTTP-layer protocol --- the client makes an HTTP GET and the server holds the response open, streaming events over it. WebSockets start as HTTP and upgrade to a framed binary protocol. APNs's device connection on port 5223 uses Apple's own proprietary binary protocol over raw TLS-encrypted TCP. There is no HTTP involved. It is purpose-built for low-overhead push delivery, not derived from a web protocol. FCM's equivalent traditionally used XMPP (an XML-based messaging protocol) over TCP. Neither connection is SSE. The conceptual similarity is that all three involve a long-lived connection over which a server can push data at any time, but the protocol layer is entirely different.
+\end{curiobox}
+
+\begin{curiobox}{What happens to notifications when a device switches from WiFi to LTE?}
+The device token remains unchanged. The underlying TCP connection from the device to APNs or FCM is torn down and a new one is established automatically by the OS. This reconnection typically takes a few hundred milliseconds to a couple of seconds, depending on network conditions. During that window, notifications sent to the device are queued at the APNs or FCM gateway (because of store-and-forward). When the new connection is established, the gateway flushes the queue. From the app's perspective, notifications may arrive slightly later than usual during a network transition, but none are lost.
+\end{curiobox}
+
+\begin{curiobox}{Why did Google deprecate the FCM legacy API, really?}
+The official reason was security: the static Server Key was a long-lived credential that could not be scoped or time-bounded. In practice, Server Keys were frequently committed to git repositories, bundled in mobile app binaries, or leaked in log files, and there was no way to detect this. Google had observed abusive actors using leaked Server Keys to send spam notifications at scale. The HTTP v1 API's OAuth 2.0 tokens expire in one hour, dramatically reducing the blast radius of a leak. The migration was expensive for the ecosystem (Google gave over a year's notice) but the security model improvement was genuine.
+\end{curiobox}
+
+\begin{curiobox}{Can your app receive push notifications when the app is force-quit by the user?}
+On iOS: mostly no. A force-quit (user swipes up to kill the app in the app switcher) blocks the app from launching in the background for any reason, including push notifications. Silent notifications (content-available) are silently dropped for force-quit apps. Visual alerts still appear in Notification Center (because the OS shows them), but your app code does not run. This is an intentional Apple restriction. On Android: apps killed via the Recent Apps list can still receive FCM messages via the FCM system service, which operates independently of your app process. This is one of the behavioral differences between iOS and Android that apps must account for in their background data refresh strategies.
+\end{curiobox}
+
+\begin{curiobox}{What is Web Push and how does it fit the same architecture?}
+Web Push (RFC 8030, standardized in 2016) brings the same relay model to browser notifications. The browser (Chrome, Firefox, Safari) generates a subscription object containing an endpoint URL, a public key, and an authentication secret. Your backend encrypts the notification payload using the public key and POSTs it to the push service operated by the browser vendor (Google for Chrome, Mozilla for Firefox, Apple for Safari). The browser's push service relays it to the browser via its own persistent connection. This is structurally identical to APNs and FCM: three-party relay, browser-managed persistent connection, provider API for your backend. The authentication uses VAPID (Voluntary Application Server Identification for Web Push), a keypair scheme that serves the same role as APNs's .p8 key.
+\end{curiobox}
+
+\begin{curiobox}{Why do some Android devices delay or miss FCM notifications even on high priority?}
+Android OEM customization. Manufacturers like Xiaomi, OnePlus, Huawei, and Samsung add their own battery optimization layers on top of Android's native Doze mode. These layers can kill background services, restrict network access, or throttle FCM delivery aggressively --- even for high-priority messages. The problem is widespread enough that the community created the site \texttt{dontkillmyapp.com} cataloging per-manufacturer workarounds. For apps where notification delivery is business-critical (messaging apps, on-call alerting), the standard advice is to instruct users to whitelist the app from battery optimization in system settings. This is a known, documented limitation of the FCM model on Android.
+\end{curiobox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Self-Quiz}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\textit{Cover the answers on the next page. Answer each question as if you are in an interview.}
+
+\bigskip
+
+\begin{quizbox}
+\textbf{Q1.} Walk me through exactly what happens, end to end, when your backend wants to send a push notification to a user's iPhone. Name every component and every connection involved.
+
+\bigskip
+\textbf{Q2.} What is an APNs device token? How does your backend get it, and why might it become invalid?
+
+\bigskip
+\textbf{Q3.} A product manager asks you to send a ``real-time'' score update to all 10 million users of your sports app every time a goal is scored. Each user may have the app installed on both an iPhone and an Android phone. Walk me through the architecture. What could go wrong?
+
+\bigskip
+\textbf{Q4.} I'm looking at your notification design and I see you're storing device tokens in a single database table and sending to them sequentially. What's the problem with this, and how would you fix it?
+
+\bigskip
+\textbf{Q5.} Google shut down the FCM legacy API in July 2024. Explain what changed architecturally, why Google made this change, and what the migration required from backend teams.
+\end{quizbox}
+
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section*{Model Answers}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{answerbox}
+\textbf{A1.} Three-party architecture. Your backend holds the user's APNs device token (stored when the app first launched and registered). It sends an HTTP/2 POST to \texttt{api.push.apple.com/3/device/\{token\}} on port 443, authenticated with a JWT signed by your \texttt{.p8} private key. APNs validates the JWT, accepts the request, and relays the notification over the persistent TLS TCP connection from the device OS to APNs on port 5223. The iOS kernel receives the notification over this connection and wakes the appropriate app process or displays the alert directly. Your backend never connects to the device.
+
+\textbf{A2.} A device token is an opaque byte string that uniquely identifies a specific app installation on a specific device. The app receives it by calling \texttt{registerForRemoteNotifications()} --- APNs generates the token and delivers it to the app via a delegate callback. The app forwards it to your backend for storage. Tokens are invalidated when the user uninstalls the app (APNs will return \texttt{BadDeviceToken}), when the device is wiped or restored, or when the app is reinstalled. Your backend should delete tokens that receive \texttt{BadDeviceToken} errors.
+
+\textbf{A3.} Each user may have APNs tokens (iOS) and FCM tokens (Android), possibly multiple per user. For 10 million users, fan out to APNs and FCM in parallel, not sequentially. Use a message queue (Kafka, SQS) to distribute the fan-out work across workers. Send to APNs via HTTP/2 connection pool; send to FCM via HTTP v1 API. Handle errors: \texttt{BadDeviceToken} means remove the token; rate limit errors mean back off and retry. With collapse keys / \texttt{apns-collapse-id}, you can ensure only the latest score reaches devices that were offline through multiple goals.
+
+\textbf{A4.} Sequential delivery to 10 million tokens is slow and single-threaded. One slow response or error blocks the queue. Fix: parallel fan-out with a worker pool, separate queues for APNs vs FCM (different error formats, rate limits, and retry behaviors), and batch requests where the provider API supports it. Also: sequential processing means a token that receives a \texttt{BadDeviceToken} error early in the list blocks later valid tokens. Parallel processing with per-token error handling avoids this.
+
+\textbf{A5.} The legacy FCM API used a static Server Key (long-lived, indefinitely valid, often accidentally committed to version control or leaked). The HTTP v1 API replaced it with OAuth 2.0 access tokens via a service account. These tokens expire in one hour, limiting the damage from a leak. The migration required: creating a Firebase service account, updating the backend to call Google's token service to obtain a Bearer token, updating the notification endpoint from \texttt{/fcm/send} to \texttt{/v1/projects/\{id\}/messages:send}, and updating the payload format to use per-platform override blocks instead of a single unified structure.
+\end{answerbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{What's Next}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{insightbox}
+\textbf{L1-08 --- Message Queues \& Streaming (Kafka, SQS).}
+
+You now understand the delivery layer: APNs and FCM are the last mile. But how does your backend decide \emph{when} to send a notification, and how does it reliably fan out to millions of recipients without losing events or overwhelming the provider APIs?
+
+That is the message queue problem. In any production notification system, the flow is: an event (new message, score update, payment received) lands in a Kafka topic; consumer workers read from that topic, look up device tokens for the relevant users, and call APNs/FCM. The queue absorbs traffic spikes (a viral post triggers 10 million notifications in 10 seconds; the queue smooths this into 10 minutes of steady fan-out). It provides retry semantics when APNs returns a rate limit error. It enables exactly-once and at-least-once delivery guarantees at the application level.
+
+L1-08 is the third and final prerequisite for Gate 1 (the Notification System retry mock). After L1-08, you have everything you need to reattempt session\_001 with a design that is architecturally correct from end to end.
+\end{insightbox}
+
+\end{document}
