@@ -1,0 +1,467 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[top=2.8cm, bottom=2.8cm, left=3cm, right=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=accent,
+            pdftitle={L1-06 Databases NoSQL -- System Design Foundations},
+            bookmarks=true]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{array}
+\usepackage{longtable}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{lightbg}{HTML}{F4F6F7}
+\definecolor{quizbg}{HTML}{EBF5FB}
+\definecolor{termbg}{HTML}{EAF2FF}
+\definecolor{curiobg}{HTML}{F5EEF8}
+\definecolor{greenbg}{HTML}{EAFAF1}
+\definecolor{notebg}{HTML}{FDF2E9}
+\definecolor{accentlight}{HTML}{FADBD8}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{highlight}}{\thesection.}{0.6em}{}[\vspace{2pt}\color{highlight!60}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{primary}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\color{primary!80}}{}{0em}{}
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+
+% ── Header/Footer ─────────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{highlight}\textbf{L1-06 --- Databases: NoSQL}}
+\fancyhead[R]{\small\color{primary!70}System Design Interview Prep}
+\fancyfoot[C]{\small\color{primary!60}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{highlight!40}\leaders\hrule height \headrulewidth\hfill}}
+
+% ── Box environments ──────────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable, hooks}
+\newtcolorbox{termbox}[1]{enhanced,breakable,colback=termbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,title={#1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{industrybox}[1]{enhanced,breakable,colback=greenbg,colframe=highlight!50!black,coltitle=white,fonttitle=\bfseries\small,title={Industry Data: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight!60!black,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{trapbox}[1]{enhanced,colback=accentlight,colframe=accent,coltitle=white,fonttitle=\bfseries\small,title={Interview Trap: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=accent,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{thinkbox}{enhanced,colback=notebg,colframe=accent!60,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=3pt,rightrule=0pt,toprule=0pt,bottomrule=0pt}
+\newtcolorbox{curiobox}[1]{enhanced,breakable,colback=curiobg,colframe=primary!60,coltitle=white,fonttitle=\bfseries\small,title={Q: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!70,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{quizbox}{enhanced,breakable,colback=quizbg,colframe=highlight,coltitle=white,fonttitle=\bfseries,title={Self-Quiz},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{answerbox}{enhanced,breakable,colback=lightbg,colframe=primary!40,coltitle=white,fonttitle=\bfseries\small,title={Model Answers},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!60,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{insightbox}{enhanced,colback=primary!5,colframe=primary,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=4pt,rightrule=0.4pt,toprule=0.4pt,bottomrule=0.4pt}
+
+\setstretch{1.15}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+\vspace*{2cm}
+\begin{center}
+  {\color{primary}\rule{\linewidth}{3pt}}\\[12pt]
+  {\huge\bfseries\color{highlight} L1-06}\\[6pt]
+  {\Huge\bfseries\color{primary} Databases: NoSQL}\\[10pt]
+  {\large\color{primary!70} Document, Columnar, Key-Value, and Graph Stores --- When to Abandon the Table and Why}\\[20pt]
+  {\color{primary}\rule{\linewidth}{1pt}}\\[16pt]
+  {\normalsize\color{primary!70}
+    \textit{Layer 1 --- Foundations} \quad\textbullet\quad
+    \textit{System Design Interview Preparation} \quad\textbullet\quad
+    \textit{2026 Edition}
+  }\\[8pt]
+  {\small\color{primary!60} Industry data sourced from Discord Engineering Blog (2023), Amazon DynamoDB re:Invent talks (2023--2024), MongoDB Atlas State of Developer Report (2024), Apache Cassandra project blog, ScyllaDB Summit talks (2023)}
+\end{center}
+\vfill
+\begin{insightbox}
+\textbf{Why this lesson exists.} NoSQL is the source of more confused interview answers than almost any other database topic. The failure mode has two forms: either a candidate reaches for Cassandra as the answer to every data storage question regardless of the actual access patterns, or they treat NoSQL as simply ``a faster database'' and cannot explain the consistency tradeoffs they are accepting. Neither answer survives an Apple ICT3 interview. NoSQL databases exist not because they are faster in some vague sense, but because certain data shapes and access patterns actively fight the relational model --- and knowing which pattern requires which store is the entire point.
+
+This document covers all four NoSQL families, goes deep on Cassandra (partition key design, LSM trees, consistency levels) and DynamoDB (sort keys, GSIs, the hot partition problem), and ends with a decision framework precise enough to use under interview pressure. Every statistic cites a primary source. The Curiosity Corner answers the deeper questions a thoughtful reader will naturally form.
+\end{insightbox}
+\vspace{1cm}
+\tableofcontents
+\end{titlepage}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Why This Exists: The Relational Model's Hard Limits}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The relational model has dominated database engineering since E.F. Codd described it in 1970. Its strengths are real: structured schemas enforce data integrity, SQL gives you a declarative query language that can express almost any question, and ACID transactions mean you never have to reason about partial writes or inconsistent reads. For a large class of problems --- financial systems, ERP, anything with complex joins and regulatory requirements --- a relational database is still the correct tool in 2026.
+
+But the relational model has three hard limits that start to hurt at internet scale, and NoSQL databases exist to escape each of them.
+
+\subsection{Hard Limit 1: Vertical scaling is finite}
+
+A relational database's fundamental execution model is single-node. The query planner, the transaction coordinator, and the lock manager all run on one server. You can buy bigger and bigger machines --- more RAM, faster SSDs, more CPU cores --- but eventually you hit a wall. In 2024, a well-tuned PostgreSQL instance on high-end hardware can handle roughly 100,000 simple queries per second. Twitter's write volume at its 2022 peak was around 6,000 tweets per second, each of which fans out to followers' timelines: a single-node relational database cannot absorb that write load regardless of how much money you spend on hardware.
+
+The relational model can be distributed, but it is painful. Sharding a PostgreSQL cluster requires you to manually partition data across nodes and route queries to the correct shard in your application code. Cross-shard joins are expensive or impossible. Cross-shard transactions require distributed coordination protocols that add latency and complexity. Systems designed from scratch to distribute data across many commodity machines --- Cassandra, DynamoDB, MongoDB --- make horizontal scaling a first-class property rather than an afterthought.
+
+\subsection{Hard Limit 2: Rigid schemas fight evolving products}
+
+A relational table has a fixed schema. Every row must have the same columns. Adding a new column requires an ALTER TABLE statement that can lock the entire table for minutes to hours on large datasets. Teams that deploy multiple times per day cannot afford schema migrations on hot tables. Document databases like MongoDB store each record as a self-describing JSON document, meaning different documents in the same collection can have different fields. This is not just convenient --- it is architecturally necessary for user-generated content, configuration data, or any domain where the set of attributes per entity is not fixed in advance.
+
+\subsection{Hard Limit 3: Table shape forces unnatural data models}
+
+Some data is not naturally tabular. A social graph, where the primary query is ``find all friends of friends within two hops,'' is a graph traversal problem. Representing it as a relational table and doing recursive joins at query time is technically possible and operationally disastrous at Facebook scale. A time series of sensor readings, where you read the last N values for a given device and write millions of new readings per second, is a sequential-append-and-range-scan problem. A relational B-tree index that assumes balanced reads and writes is a poor fit. NoSQL families emerged around these specific data shapes, not as a rejection of relational databases in general, but as purpose-built tools for problems the relational model handles poorly.
+
+\begin{insightbox}
+The most important sentence in this lesson: \textbf{NoSQL is not a technology; it is a family of four completely different data models, each designed for a specific access pattern.} A document store, a columnar store, a key-value store, and a graph database have almost nothing in common except that they do not organize data into relational tables. Choosing the right one requires knowing your access patterns first, not your preference for a particular brand.
+\end{insightbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{ACID vs BASE: The Consistency Tradeoff You Are Making}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Before examining the four NoSQL families, you need to understand the consistency model you are trading away when you leave the relational world. This is the single most common gap in interview answers about NoSQL.
+
+\begin{termbox}{ACID}
+\textbf{Atomicity}: A transaction either completes fully or is rolled back entirely. No partial writes visible to other transactions.
+
+\textbf{Consistency}: Every transaction takes the database from one valid state to another. All defined constraints (foreign keys, unique constraints) are enforced.
+
+\textbf{Isolation}: Concurrent transactions behave as if they executed serially. One transaction's intermediate state is invisible to others.
+
+\textbf{Durability}: Once committed, a transaction survives system failures. The data is on disk (or replicated) before the commit is acknowledged.
+\end{termbox}
+
+ACID is what allows you to debit a bank account and credit another in a single operation and know it either both happened or neither happened. Most relational databases (PostgreSQL, MySQL InnoDB, Oracle) provide full ACID guarantees, though at a cost: obtaining locks, writing to write-ahead logs, and coordinating across replicas takes time.
+
+\begin{termbox}{BASE}
+\textbf{Basically Available}: The system guarantees availability of reads and writes, even in the presence of partial network failures. Requests may be served by a node that does not have the latest data.
+
+\textbf{Soft State}: The state of the system may change over time even without new input, as replicas converge to consistency.
+
+\textbf{Eventually Consistent}: If no new updates are made to a piece of data, all replicas will eventually converge to the same value. There is no hard guarantee about \textit{when} this convergence happens.
+\end{termbox}
+
+BASE is the consistency model most NoSQL databases operate under by default. The trade is explicit: by relaxing the guarantee that every read sees the latest write, the system can respond to reads even when a network partition has split the cluster. The Eric Brewer CAP theorem (2000) formalizes this: in the presence of a network partition, you must choose between Consistency and Availability. ACID databases choose Consistency (they will reject requests rather than serve stale data). BASE databases choose Availability (they will serve a response even if it might be slightly stale).
+
+\begin{thinkbox}
+\textbf{But does ``eventually consistent'' mean data loss?} Not the same thing. Eventual consistency is about when a write becomes visible to all readers --- it says nothing about whether the write is durable. Cassandra, for example, writes data to a commit log on disk before acknowledging the write. The data is not lost. But if you write to node A and immediately read from node B, you may not see the write yet, because B has not received the replication message from A. The data exists; it just has not propagated yet. This is different from losing the write entirely.
+\end{thinkbox}
+
+Understanding ACID vs BASE is not just theoretical. In an interview, every time you choose a NoSQL database, you should be able to articulate what consistency guarantees you are giving up and why that trade is acceptable for your use case. For a user profile that shows a slightly stale display name, eventual consistency is fine. For a financial balance that drives payment decisions, it is not.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{The Four NoSQL Families}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Document Stores: MongoDB, Firestore, CouchDB}
+
+The problem document stores solve is this: your data is naturally hierarchical and the structure varies per entity. A user profile might have 5 fields for a basic account or 50 fields for a power user who has filled in every optional setting, connected social accounts, and added a payment method. In a relational database, you either create a wide table with 50 nullable columns (wasteful, schema migration heavy) or normalize into many tables and join at query time (expensive and fragile). A document store lets each user record be a self-describing JSON document containing exactly the fields that entity has.
+
+\begin{termbox}{Document Store Data Model}
+Data is stored as documents, typically JSON or BSON (Binary JSON). Each document is a nested key-value structure. Documents are grouped into collections (analogous to tables). Documents within the same collection can have different schemas. Each document has a unique identifier (\texttt{\_id}). Indexes can be created on any field within the document, including nested fields.
+\end{termbox}
+
+MongoDB is the dominant document store, with over 46,000 customers as of the MongoDB 2024 Annual Report. Its Atlas cloud product grew 27\% year-over-year in 2024, driven by e-commerce, content management, and gaming use cases where flexible schemas are a practical necessity. Firestore (Google Cloud) is the document store most commonly paired with mobile applications because its client SDKs support real-time subscriptions: when a document changes in Firestore, clients that are watching that document are notified within milliseconds via a persistent WebSocket connection, without polling.
+
+Document stores support rich secondary indexes, range queries, and full-text search --- capabilities that key-value stores deliberately omit in exchange for lower latency. This makes them appropriate when you need to query on multiple fields, not just the primary key.
+
+\begin{trapbox}{``Document stores are just JSON databases''}
+This undersells them in a way that costs you interview points. The architecturally important property is the flexible schema, which enables schema-free evolution of data models across deploys. The rich secondary indexing enables query patterns that pure key-value stores cannot support. The aggregation pipeline in MongoDB (introduced in version 2.2, matured by version 4.4) can perform grouping, filtering, and computation that rivals SQL analytics for moderate data volumes. Describe document stores by their query capability, not just their storage format.
+\end{trapbox}
+
+\subsection{Columnar / Wide-Column Stores: Cassandra, HBase, Bigtable}
+
+The problem wide-column stores solve is at a different scale entirely: you need to write millions of events per second with low latency, distribute data across hundreds of nodes, and read time-ordered sequences for a given entity efficiently. This is the pattern of time-series data, activity logs, sensor readings, and message storage.
+
+\begin{termbox}{Wide-Column Data Model}
+Data is organized by a \textbf{partition key} that determines which node(s) store the row. Within a partition, rows are stored sorted by a \textbf{clustering key}. This means all rows with the same partition key are co-located on the same node(s) and stored contiguously on disk, sorted in the order you define. A single partition can contain millions of clustered rows and reading a range of them is a sequential disk scan.
+\end{termbox}
+
+The partition key is the defining design decision in a wide-column schema. Every query must specify the partition key; you cannot do full-table scans efficiently. This constraint is not a bug --- it is the architectural property that makes Cassandra scale linearly as you add nodes. If you add more nodes to a Cassandra cluster, each node becomes responsible for a smaller subset of partition key ranges, and the cluster's total throughput grows proportionally.
+
+\begin{industrybox}{Cassandra at Apple, Netflix, and Discord}
+Apple runs one of the largest Cassandra deployments in the world: over 160,000 Cassandra nodes across multiple data centers as of 2021 (Apple Engineering presentation, DataStax Summit 2021). The scale reflects their use of Cassandra for Siri, iCloud, and App Store telemetry --- all write-heavy workloads with high fan-out. Netflix uses Cassandra for its viewing history service, storing every play event for every user globally. At its 2023 scale, Netflix's Cassandra cluster handles over 1 million writes per second across its global infrastructure (Netflix Tech Blog, 2023). Discord used Cassandra to store message history for its chat platform, reaching 100 billion messages stored by 2022. In 2023, Discord migrated away from Cassandra to ScyllaDB --- a C++ reimplementation of the Cassandra storage engine --- citing severe garbage collection pauses in the JVM-based Cassandra that caused p99 read latencies to spike to seconds under load. ScyllaDB's GC-free design reduced Discord's p99 read latency from over 40ms to under 15ms (Discord Engineering Blog, May 2023).
+\end{industrybox}
+
+\subsubsection{Cassandra's Write Path: Why It Is So Fast}
+
+Cassandra's write performance comes from its storage engine design, which is based on the Log-Structured Merge Tree (LSM Tree), the same structure used by RocksDB and LevelDB.
+
+When Cassandra receives a write, two things happen in parallel: the write is appended to a commit log on disk (for durability), and the write is stored in an in-memory structure called a memtable. The response is acknowledged to the client after both of these operations complete --- disk append and in-memory insert. This is why Cassandra writes are fast: writing to the end of a sequential log file is one of the fastest operations a disk can perform (no random I/O, no index updates, no page locking), and the in-memory memtable serves reads immediately.
+
+When a memtable fills up, it is flushed to disk as an immutable file called an SSTable (Sorted String Table). Over time, many SSTables accumulate. Cassandra periodically runs a background process called compaction that merges multiple SSTables into one, discarding obsolete versions of data and reclaiming space. This is the tradeoff of the LSM design: writes are fast, but reads may need to merge data from multiple SSTables and the memtable, which is why Cassandra's read performance is more sensitive to schema design than its write performance.
+
+\begin{thinkbox}
+\textbf{If reads require merging multiple SSTables, how does Cassandra serve reads quickly?} Two mechanisms. First, Bloom filters: each SSTable has a probabilistic data structure that tells Cassandra, with high confidence, whether a given partition key exists in that SSTable without reading the file. This eliminates most SSTable checks for keys that do not exist in a given file. Second, key caches and row caches held in heap memory allow Cassandra to serve hot reads without touching disk at all. The combination makes read performance acceptable for well-designed schemas, though it never matches write performance.
+\end{thinkbox}
+
+\subsubsection{Cassandra Consistency Levels}
+
+Cassandra's consistency model is tunable per query. When you write or read, you specify a consistency level that determines how many replicas must acknowledge the operation before it is considered complete. The common levels are:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{3cm}p{5.5cm}p{5.5cm}}
+\toprule
+\textbf{Level} & \textbf{What It Means} & \textbf{When to Use} \\
+\midrule
+ONE & 1 replica must respond & Write-heavy, latency-sensitive, tolerate stale reads \\
+QUORUM & Majority (\(\lfloor RF/2 \rfloor + 1\)) must respond & Balanced: reads always see latest write if you use QUORUM for both \\
+ALL & All replicas must respond & Never in production; one node down = failure \\
+LOCAL\_QUORUM & Quorum within the local data center & Multi-region: avoids cross-region latency for most operations \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The key insight is that reading and writing at QUORUM together guarantees strong consistency: since a majority wrote the value and a majority reads the value, at least one of the readers must have the latest version. Writing at ONE and reading at ONE gives you eventual consistency and maximum throughput. Most production Cassandra systems use LOCAL\_QUORUM for writes and reads, which gives strong consistency within a data center and eventual consistency across data centers.
+
+\subsubsection{The Hot Partition Problem}
+
+Hot partitions are the most common Cassandra production failure mode, and they are always caused by bad partition key design. A hot partition occurs when a disproportionate fraction of all reads or writes target the same partition key, concentrating load on the one or two Cassandra nodes responsible for that key range.
+
+Imagine a messaging app that partitions messages by the channel ID. A channel with 1 million active users generates enormous write volume to a single partition. That partition's node becomes the bottleneck: it handles far more requests than its neighbors, its CPU saturates, its request queues grow, and p99 latency spikes. Meanwhile, nodes responsible for low-traffic channels sit idle.
+
+\begin{trapbox}{Choosing a Non-Uniform Partition Key}
+The mistake: choosing a partition key that is logically natural (channel ID, user ID, date) without verifying that the distribution of writes across those key values is approximately uniform. In Cassandra, a partition key that skews --- where one value receives 1000 times more traffic than the average --- will create a hot spot regardless of how many nodes you add to the cluster. Adding nodes does not help because the skewed key maps to the same node(s). The fix is to add a ``bucket'' or ``shard'' suffix to the partition key to artificially spread the high-traffic entity across multiple partitions: \texttt{channel\_id:shard\_number} where shard\_number cycles 0--N based on a hash.
+\end{trapbox}
+
+\subsection{Key-Value Stores: Redis, DynamoDB (KV mode), Memcached}
+
+Key-value stores are the simplest data model: a key maps to a value. The value is opaque --- the database does not parse or index it. You can only look up a value by its exact key; there is no range query, no secondary index, no query language. What you get in exchange is the highest possible throughput and lowest possible latency for key-based lookups.
+
+\begin{termbox}{Key-Value Data Model}
+A key-value store is a distributed hash table. Each key is hashed to determine which node holds it. The value associated with a key is stored on that node. Operations are: \texttt{GET(key)} returns the value or null; \texttt{SET(key, value)} stores the value; \texttt{DEL(key)} removes the key. Some stores support additional atomic operations: increment, compare-and-swap, or list/set/hash operations (Redis).
+\end{termbox}
+
+Redis is the most feature-rich key-value store and the one most relevant to system design interviews. While its data model is key-value at the top level, Redis supports rich value types: strings, lists, sorted sets, hash maps, bitmaps, and HyperLogLog sketches. Sorted sets, in particular, are the foundation of the rate-limiting and leaderboard patterns that appear frequently in interview questions. Redis stores all data in memory (with optional persistence to disk), which is why it can serve millions of operations per second with sub-millisecond latency.
+
+\begin{industrybox}{Redis at Scale: Twitter and Stack Overflow}
+Twitter uses Redis as a timeline cache, storing the materialized timelines of active users entirely in memory to serve reads without touching the underlying database. At its 2022 operational peak, Twitter's Redis cluster cached timelines for tens of millions of active users, enabling sub-5ms read latency for timeline fetches (Twitter Engineering Blog, 2022). Stack Overflow serves billions of page views per month from a small number of servers partly because it uses aggressive Redis caching. In 2023, Stack Overflow reported that its Redis cluster (9 servers) handled over 1.5 billion Redis commands per day, reducing SQL Server load to a fraction of what it would be with database-only serving (Stack Overflow blog, 2023). Redis 7.0 (released 2022) introduced Redis Functions and improved cluster replication, making it viable for use cases that previously required more complex infrastructure.
+\end{industrybox}
+
+\subsection{Graph Databases: Neo4j, Amazon Neptune}
+
+Graph databases solve a specific problem: data where the relationships between entities are as important as the entities themselves, and where queries traverse those relationships to arbitrary depth. The canonical examples are social graphs (``find all people within 3 degrees of connection from user X''), fraud detection (``find accounts that share device identifiers or billing addresses with known fraudulent accounts''), and recommendation engines (``find products that users similar to me have purchased'').
+
+\begin{termbox}{Graph Data Model}
+Data is stored as \textbf{nodes} (entities) and \textbf{edges} (relationships between entities). Both nodes and edges can carry arbitrary properties. Edges are first-class citizens with their own storage --- they are not reconstructed by joining tables. Graph query languages (Cypher in Neo4j, Gremlin) express traversals naturally: ``starting from node A, follow edges of type FOLLOWS to depth 2, then return unique nodes.'' This traversal is performed by following physical pointers from node to node, with O(1) cost per edge followed rather than a JOIN that scales with table size.
+\end{termbox}
+
+The critical property of graph databases is that relationship traversal is \textit{index-free} in Neo4j's architecture. When you ask for all neighbors of a node, Neo4j follows a pointer directly to the adjacency list of that node --- it does not scan or join any table. This means traversal cost scales with the depth and branching factor of the traversal, not with the total number of nodes in the graph. LinkedIn's graph of 950 million members and their connections (LinkedIn Engineering Blog, 2023) would be operationally infeasible to traverse with a relational JOIN. A graph database traverses it efficiently because it is physically organized around adjacency.
+
+\begin{thinkbox}
+\textbf{Why not just use PostgreSQL with recursive CTEs for graph traversal?} For small graphs (tens of millions of nodes) and shallow traversals (depth 2--3), PostgreSQL recursive CTEs are entirely viable and many companies use them successfully. The breakdown happens at scale and depth: a WITH RECURSIVE query at depth 6 on a graph with 100 million nodes requires intermediate result sets that dwarf available memory. Graph databases with native graph storage and index-free adjacency handle arbitrary depth traversal on billion-node graphs in milliseconds. LinkedIn, Facebook, and Twitter all operate purpose-built graph infrastructure rather than relational databases for their social graph traversals.
+\end{thinkbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{DynamoDB: The AWS Managed Wide-Column Store}
+% ─────────────────────────────────────────────────────────────────────────────
+
+DynamoDB occupies a special place in system design interviews because it is the database most frequently used by companies building on AWS, it is fully managed (no cluster to operate), and its design is historically significant: Amazon published the Dynamo paper in 2007, and many of the ideas in that paper (consistent hashing, vector clocks, sloppy quorum) became the foundation for Cassandra and other distributed databases.
+
+DynamoDB's data model is a table with a mandatory partition key and an optional sort key. When a sort key is present, items with the same partition key are stored together and sorted by the sort key, enabling range queries within a partition. When only a partition key is present, items are accessed only by exact key match.
+
+\begin{termbox}{DynamoDB Key Design}
+\textbf{Partition key} (required): Determines which partition stores the item. Must be provided in every read and write. DynamoDB hashes it to determine physical storage location.
+
+\textbf{Sort key} (optional): Within a partition, items are stored sorted by this key. Enables queries like ``all orders for customer X placed after date Y.''
+
+\textbf{GSI (Global Secondary Index)}: A secondary index with a different partition key. Allows querying on non-primary-key attributes. Data is replicated to a separate partition structure asynchronously (eventual consistency).
+
+\textbf{LSI (Local Secondary Index)}: A secondary index on the same partition key but a different sort key. Strongly consistent because it reads from the same partition.
+\end{termbox}
+
+\begin{industrybox}{DynamoDB at Amazon: Single-Digit Millisecond at Any Scale}
+Amazon's promise for DynamoDB is single-digit millisecond read and write latency at any scale. This is not marketing language --- it is an architectural guarantee backed by DynamoDB's partitioned storage model and its use of SSDs. During Amazon Prime Day 2023, DynamoDB handled peak loads of 89.2 million requests per second across Amazon's internal services (Amazon re:Invent, December 2023). No single-node relational database comes within orders of magnitude of this throughput. DynamoDB achieves it by partitioning data across a fleet of thousands of storage nodes, ensuring no single node is a bottleneck. The service is responsible for the cart, order pipeline, session management, and product catalog of Amazon's retail platform --- all requiring sub-10ms responses under massive concurrent load.
+\end{industrybox}
+
+The most important operational concept in DynamoDB is the hot partition. DynamoDB distributes storage and throughput across partitions. If a partition key is poorly chosen and many requests target the same key value, that partition becomes a hotspot. DynamoDB has built-in adaptive capacity that automatically shifts throughput allocation to hot partitions, but adaptive capacity cannot overcome a partition key design that routes all traffic to a single physical partition. The solutions are the same as in Cassandra: add cardinality to the partition key (write-sharding), or redesign the access pattern.
+
+\begin{trapbox}{Choosing a Low-Cardinality Partition Key}
+The mistake: using a partition key like \texttt{status} (values: ``active'', ``inactive''), \texttt{date} (values: ``2025-01-01'', ``2025-01-02''), or \texttt{country} (values: ``US'', ``UK'', ``CA''). Low-cardinality keys concentrate all traffic on a handful of partitions. DynamoDB's provisioned throughput is spread across partitions proportionally, so if all your reads go to the \texttt{status=active} partition, that partition quickly exhausts its allocated capacity and you get throttling errors --- even if your total provisioned capacity is theoretically sufficient. The fix is to use a high-cardinality value (user ID, message ID, order ID) as the partition key, or to artificially add a random suffix to a low-cardinality key (write-sharding).
+\end{trapbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Decision Framework: Choosing the Right Store}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The decision to use SQL or one of the four NoSQL families should always begin with access patterns, not brand preference. The following framework gives you a structured way to think through this choice under interview pressure.
+
+\textbf{Step 1: Characterize your access patterns.} What queries will you execute most frequently? If you can enumerate them (``look up profile by user ID,'' ``get last 100 messages for a conversation,'' ``find all friends of user X within 3 hops''), the right data model usually becomes obvious. If you cannot enumerate your primary access patterns, you are not ready to choose a database.
+
+\textbf{Step 2: Assess your consistency requirements.} Does your use case require that a read always returns the latest write? (Payment balance: yes. User display name: probably not.) Strong consistency requirements push you toward relational databases or Cassandra at QUORUM, and away from eventually-consistent key-value stores.
+
+\textbf{Step 3: Assess your scale requirements.} How many writes per second? How many reads per second? Does the data volume fit on one well-specced server, or does it require horizontal distribution across many nodes? Relational databases are appropriate up to roughly 100,000 QPS with careful indexing. Beyond that, you need a horizontally-scalable NoSQL store.
+
+\textbf{Step 4: Assess your schema stability.} Will your data model change frequently? Evolving schemas favor document stores. Stable, well-defined schemas fit relational databases or wide-column stores.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabularx}{\textwidth}{p{2.8cm}XXXX}
+\toprule
+\textbf{} & \textbf{Relational (PostgreSQL)} & \textbf{Document (MongoDB)} & \textbf{Wide-Column (Cassandra)} & \textbf{Key-Value (Redis)} \\
+\midrule
+\textbf{Data shape} & Tables, rows, fixed schema & Hierarchical JSON, flexible schema & Partitioned rows, sorted columns & Opaque blobs by key \\
+\textbf{Primary query} & Arbitrary SQL, joins, aggregations & Field queries, nested doc access & Partition key + clustering key range & Exact key lookup \\
+\textbf{Consistency} & ACID, strong by default & Tunable (default eventual) & Tunable (ONE to ALL) & Eventual (async replication) \\
+\textbf{Write scale} & Moderate (single node) & High (sharded) & Very high (LSM, linear scale) & Extremely high (in-memory) \\
+\textbf{Read latency} & Low--moderate & Low & Low--moderate & Sub-millisecond \\
+\textbf{Schema changes} & Painful (ALTER TABLE) & Free (per-document) & Additive only (columns) & N/A (value is opaque) \\
+\textbf{Best fit} & Finance, ERP, complex analytics & User profiles, product catalogs, CMS & Time-series, messages, activity logs & Caching, sessions, rate limiting, leaderboards \\
+\textbf{Examples} & Banking, orders, inventory & Netflix catalog, e-commerce product data & Discord messages, Apple iCloud events & Twitter timeline cache, session tokens \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\bigskip
+
+Graph databases are omitted from the table because they serve a structurally different purpose: use them when the primary query is a multi-hop traversal of relationships. Social graphs, fraud detection networks, and recommendation engines are the signal. If your primary queries are point lookups or range scans, you do not need a graph database.
+
+\begin{trapbox}{``I'll Use Cassandra Because It Scales''}
+This is one of the most common and most damaging answers in a system design interview. Cassandra is optimized for write-heavy, append-mostly workloads with access patterns that are known in advance and fit the partition-key-plus-clustering-key model. It is a poor choice for use cases requiring ad hoc queries, strong ACID transactions, complex joins, or secondary indexes that span multiple partitions. Using Cassandra for a financial ledger or a complex analytics pipeline because it ``scales'' demonstrates a fundamental misunderstanding of what Cassandra trades away to achieve its throughput. State your access patterns first, and let the data model follow from them.
+\end{trapbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Critical Numbers Reference}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{p{5.5cm}p{5.5cm}p{3.5cm}}
+\toprule
+\textbf{Number} & \textbf{What It Means} & \textbf{Source / Year} \\
+\midrule
+89.2M req/s & DynamoDB peak throughput (Prime Day 2023) & Amazon re:Invent, Dec 2023 \\
+160,000 nodes & Apple's Cassandra cluster size & DataStax Summit, 2021 \\
+1M writes/s & Netflix Cassandra write throughput & Netflix Tech Blog, 2023 \\
+100B messages & Discord messages stored in Cassandra before migration & Discord Engineering Blog, 2023 \\
+$<$15ms p99 reads & Discord's p99 read latency after ScyllaDB migration & Discord Engineering Blog, May 2023 \\
+40ms+ p99 reads & Discord's p99 read latency in Cassandra before migration & Discord Engineering Blog, May 2023 \\
+27\% YoY growth & MongoDB Atlas revenue growth rate (2024) & MongoDB 2024 Annual Report \\
+46,000+ customers & MongoDB Atlas customer count (2024) & MongoDB 2024 Annual Report \\
+1.5B commands/day & Stack Overflow Redis cluster throughput & Stack Overflow Blog, 2023 \\
+RF=3 & Cassandra default replication factor (3 replicas) & Cassandra Documentation \\
+QUORUM = RF/2+1 & Minimum nodes for strong consistency with RF=3: 2 nodes & Cassandra Documentation \\
+$\sim$100K QPS & Practical PostgreSQL single-node ceiling (well-tuned) & Various benchmarks, 2023--2024 \\
+1 item = 400 KB max & DynamoDB maximum item size & AWS Documentation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Design Application}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Application 1: Designing a Chat System (L3-09 preview)}
+
+A chat system like Discord or WhatsApp has two distinct access patterns for messages. Writes are high-volume and append-only: thousands of messages per second are inserted, each associated with a channel and a timestamp. Reads are always range queries: ``give me the last 100 messages in channel X, starting before timestamp T.'' There are no joins. There is no need to query across channels. The schema is stable.
+
+This is exactly the pattern Cassandra is designed for. The natural schema is: partition key = \texttt{channel\_id}, clustering key = \texttt{message\_id} (a time-ordered UUID). This stores all messages for a channel on the same node(s), sorted by message ID, enabling range reads with a single sequential disk scan. Writes append to the end of the LSM tree structure, achieving very high throughput. Discord's use of this exact schema (before migrating to ScyllaDB for GC-pause reasons) validates the design.
+
+The partition key caveat applies: a channel with millions of messages per day creates a very large partition. Discord mitigated this by bucketing: \texttt{(channel\_id, bucket)} where bucket is a time-based integer (e.g., month index). This caps partition size while preserving the locality of recent messages.
+
+\subsection{Application 2: User Profile Store}
+
+User profiles are a canonical document store use case. A profile entity has a core set of fields (user ID, email, display name, created-at timestamp) plus an arbitrary set of optional fields that vary by user type: payment methods for paying customers, organization details for enterprise accounts, social profile links for creators. The set of attributes is not fixed in advance and will expand as the product evolves.
+
+A relational table for user profiles requires either a wide sparse table with many nullable columns or a complex normalized schema with many joins. MongoDB stores each user as a JSON document. New fields are added by the application without schema migration. A query for ``all users in the US who have a payment method on file'' is supported by a compound index on \texttt{country} and the existence of \texttt{paymentMethod}. This is the pattern that MongoDB Atlas is optimized for, and it explains why e-commerce and SaaS applications are its dominant use cases.
+
+\subsection{Application 3: Rate Limiting Service}
+
+A rate limiting service for an API gateway needs to answer one question per incoming request: ``Has user X exceeded their quota in the current time window?'' If yes, reject. If no, increment and allow. This must complete in under 1ms, happen millions of times per second, and work correctly across multiple API gateway instances (so the counter must be centralized, not per-instance).
+
+Redis sorted sets solve this with the sliding window counter pattern. The key is \texttt{ratelimit:user\_id}. The value is a sorted set where each member is a request timestamp and the score is the timestamp as a Unix millisecond value. To check the rate limit: remove all members with timestamps older than the window (ZREMRANGEBYSCORE), count the remaining members (ZCARD), and compare to the limit. To record a new request: add the current timestamp as a new member (ZADD). The entire operation runs in Redis as a Lua script (atomic execution) and completes in under 1ms because all data is in memory. This is how Stripe, Cloudflare, and most API gateway providers implement sliding window rate limiting.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Curiosity Corner}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{curiobox}{Why did Discord choose ScyllaDB over just tuning Cassandra?}
+Discord's problem was not configuration --- it was the JVM itself. Cassandra is written in Java and relies on the JVM's garbage collector to reclaim memory. At Discord's scale (100 billion messages, 12 million concurrent WebSocket connections, hundreds of billions of reads and writes), the heap grew large enough that GC pauses became frequent and unpredictable. A stop-the-world GC pause of 200--500ms on a node handling thousands of requests per second causes a cascade: requests queue up, timeouts fire, retries compound the load, and the node spirals into instability. Discord tried Cassandra's available GC tuning options (G1GC, ZGC) and saw improvement, but not enough to eliminate the p99 spikes. ScyllaDB is a C++ rewrite of the Cassandra storage engine. It has no garbage collector. Memory is managed with C++ RAII and a shard-per-core architecture that eliminates contention between threads. Discord's post-migration p99 read latency dropped from 40ms to under 15ms, and the team eliminated a class of operational incidents that had previously required on-call response (Discord Engineering Blog, May 2023). The lesson is that the data model can be right while the implementation can still be the wrong choice for your specific performance envelope.
+\end{curiobox}
+
+\begin{curiobox}{How does Cassandra decide which node stores a given partition key?}
+Through consistent hashing. Cassandra assigns each node in the cluster a position on a conceptual ring of 2\textsuperscript{64} positions (the token ring). When you write a row, Cassandra hashes the partition key using a hash function (Murmur3 by default) to produce a 64-bit token. The row is stored on the node whose token range includes that value (the first node clockwise on the ring from the token). With replication factor RF=3, the row is replicated to the next two nodes clockwise from the primary. This architecture means adding a node to the cluster requires only the new node to take responsibility for a portion of the token ring from its neighbors --- no full data reshuffle. This is why Cassandra's horizontal scaling is linear: doubling the number of nodes roughly halves the load per node, and only a fraction of data needs to move during the rebalancing.
+\end{curiobox}
+
+\begin{curiobox}{What is the Dynamo paper and why does it still matter in 2026?}
+Amazon published ``Dynamo: Amazon's Highly Available Key-Value Store'' at SOSP 2007, describing the internal distributed key-value store they had built to handle Amazon's shopping cart and other critical retail services. The paper introduced three ideas that became foundational to distributed systems design: consistent hashing for data distribution, vector clocks for tracking causally consistent versions of data across replicas, and sloppy quorum with hinted handoff for maintaining availability during node failures. These ideas were directly adopted by the Cassandra project (founded by Facebook engineers who had read the paper), and variants of them appear in Riak, CouchDB, and Voldemort. Reading the Dynamo paper is the highest-leverage 30 minutes you can spend understanding why eventually consistent databases make the architectural choices they do --- it is not historical trivia, it is the source of the design decisions you encounter in every wide-column store.
+\end{curiobox}
+
+\begin{curiobox}{Can you run ACID transactions in MongoDB or DynamoDB?}
+Yes, both added multi-document/multi-item transactions, but with important caveats. MongoDB added multi-document ACID transactions in version 4.0 (2018). They work across documents within a single replica set or, with version 4.2, across shards. The cost is significant: transactions acquire document-level locks, hold them for the transaction duration, and incur higher write overhead than single-document operations. MongoDB's own documentation advises using single-document operations when possible because they are atomic without a formal transaction and far cheaper. DynamoDB added TransactWriteItems and TransactGetItems in 2018. These allow atomic conditional writes across up to 25 items in a single DynamoDB table or across tables. The cost is two times the write capacity units of the same operations performed non-transactionally (because DynamoDB does a two-phase commit internally). Both implementations are genuine ACID transactions, not eventual-consistency workarounds. But the design philosophy of both systems is to avoid needing them by modeling data to avoid cross-document or cross-item consistency requirements.
+\end{curiobox}
+
+\begin{curiobox}{What is a vector clock, and why did DynamoDB move away from them?}
+A vector clock is a data structure that tracks causality between versions of a value across replicas. Each node maintains a counter, and a vector clock is the tuple of all counters. When node A writes a value, it increments its counter. When that value replicates to node B and node B subsequently writes a different version (without having received A's write), both versions carry their own vector clocks. A client receiving both versions can inspect the clocks to determine whether one causally precedes the other or whether they are concurrent conflicting updates that require reconciliation. The original Dynamo (and early Cassandra) used vector clocks to let clients detect and resolve conflicts. Amazon removed them from DynamoDB in 2012, arguing that in practice the vector clocks grew unboundedly over time and the conflict resolution burden placed on clients was too complex for most application developers. DynamoDB now uses a last-write-wins model based on timestamps, which is simpler and loses some causality tracking precision. This is a deliberate tradeoff: operational simplicity over theoretical completeness.
+\end{curiobox}
+
+\begin{curiobox}{When should you use a graph database versus a relational database for a social graph?}
+The answer depends on traversal depth and graph size. For a social graph of up to a few million nodes where the primary query is ``find direct friends'' (depth 1) or ``friends of friends'' (depth 2), a relational database with a well-indexed adjacency table (\texttt{user\_id, friend\_id}) performs acceptably. PostgreSQL's recursive CTEs can handle depth-3 traversals at this scale with sub-second response times. The inflection point comes at depth 3+ on graphs with hundreds of millions of nodes. At that scale, the JOIN operations in a relational database require intermediate result sets that grow exponentially with depth. A graph database with index-free adjacency (Neo4j's physical storage links nodes directly to their neighbors) follows edges with O(1) cost per hop regardless of total graph size. LinkedIn's People You May Know feature, which requires traversals of depth 3--4 across 950 million members, could not be served from a relational database at acceptable latency. The rule of thumb: use a graph database when your primary queries require traversals of depth 3 or more on a graph with more than 10 million nodes.
+\end{curiobox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Self-Quiz}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\textit{Cover the answers on the next page. Answer each question as if you are in a live ICT3 interview.}
+
+\bigskip
+
+\begin{quizbox}
+\textbf{Q1.} I want to store user activity events --- every click, page view, and purchase --- for 50 million users at a rate of 500,000 events per second. Each query reads the last 200 events for a specific user in reverse chronological order. Which database family would you choose, and how would you design the schema? What would go wrong if you chose PostgreSQL instead?
+
+\bigskip
+\textbf{Q2.} Walk me through what ``eventual consistency'' means in Cassandra. I write a user's display name on node A. Thirty milliseconds later, a different user reads that display name from node B. What value do they see, and why?
+
+\bigskip
+\textbf{Q3.} Your DynamoDB table for order history has \texttt{user\_id} as the partition key and \texttt{order\_date} as the sort key. During a flash sale, one user places 10,000 orders in a minute. What problem does this cause, and how do you fix it?
+
+\bigskip
+\textbf{Q4.} You're designing a fraud detection system that needs to identify accounts sharing device fingerprints or IP addresses across a 100-million-user network. Why is a graph database a better choice than a relational database for this specific query, even though you already have PostgreSQL in your stack?
+
+\bigskip
+\textbf{Q5.} A startup founder tells you they chose MongoDB for their new financial ledger application because ``NoSQL is more scalable.'' What specific risks does this decision introduce, and under what conditions would MongoDB actually be appropriate for financial data?
+\end{quizbox}
+
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section*{Model Answers}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{answerbox}
+\textbf{A1.} This is a write-heavy, append-only workload with a predictable primary access pattern (range read by user in reverse time order). Cassandra or a Cassandra-compatible system (ScyllaDB, DynamoDB) is the right choice. Schema: partition key = \texttt{user\_id}, clustering key = \texttt{event\_id} (time-UUID, descending) so the most recent events are stored first in each partition. Writing 500,000 events per second maps cleanly to Cassandra's LSM-tree write path: each write is a sequential log append and an in-memory memtable insert, avoiding random I/O. PostgreSQL would fail at two levels: (1) a single PostgreSQL instance cannot absorb 500K writes/second regardless of hardware; sharding PostgreSQL requires application-level routing logic, and (2) a B-tree index on \texttt{event\_time} in a table with billions of rows requires expensive index updates on every insert and degrades over time as the index fragment with random writes. Cassandra's LSM design is specifically optimized for exactly this pattern.
+
+\bigskip
+\textbf{A2.} With default eventual consistency (consistency level ONE on both read and write), the reader on node B may see the old display name. When the write is acknowledged at consistency ONE, only one replica (node A) has confirmed receipt. The write propagates to node B asynchronously in the background. If the read arrives at node B before that propagation completes --- which can take anywhere from a few milliseconds to a few seconds depending on cluster health --- node B returns the old value. This is not a bug in Cassandra; it is the explicit tradeoff for write throughput and availability. To get strong consistency, use QUORUM on both write and read: the write must be acknowledged by a majority of replicas before returning, and the read must be confirmed by a majority, guaranteeing at least one replica has the latest value.
+
+\bigskip
+\textbf{A3.} The problem is a hot partition. All 10,000 orders for that user go to the single partition determined by \texttt{user\_id}. DynamoDB allocates throughput per partition, so this one partition exhausts its write capacity and DynamoDB returns ProvisionedThroughputExceededException errors even if the rest of the table is lightly loaded. Adaptive capacity helps but cannot eliminate the bottleneck if the imbalance is extreme. Fix options: (1) Write-shard the partition key: \texttt{user\_id\#shard} where shard is a random number 0--9. Reads must query all 10 shards and merge results, but writes spread across 10 partitions. (2) Re-examine the access pattern: if flash-sale orders are a one-time spike, a dedicated hot-sale order table with a different partition strategy may be appropriate. (3) Use DynamoDB's burst capacity plus DAX (DynamoDB Accelerator) caching to absorb read spikes without schema changes.
+
+\bigskip
+\textbf{A4.} The fraud detection query --- ``find all accounts that share a device fingerprint with account X within 3 hops of connection'' --- is a multi-hop graph traversal. In PostgreSQL, this requires a recursive CTE on a self-join of the accounts table. At depth 3 on 100 million accounts with potentially billions of device-sharing edges, the intermediate result sets grow to hundreds of millions of rows and the query can take minutes. A graph database (Neo4j, Amazon Neptune) stores nodes and edges with physical adjacency pointers. Following 3 hops from a starting node requires following 3 pointers, not joining 100-million-row tables 3 times. The traversal is O(edges followed), not O(table size). For fraud detection, where you need results in seconds to reject a transaction in real time, the graph database's traversal performance is not an optimization --- it is the only architecture that makes the use case feasible.
+
+\bigskip
+\textbf{A5.} The specific risks: MongoDB's default write concern (\texttt{w:1}) acknowledges writes after they reach only one replica, not the majority. In a replica set failover event, writes acknowledged under \texttt{w:1} that have not replicated to the new primary can be rolled back --- silently discarding committed data. For a financial ledger, this is catastrophic. MongoDB also does not enforce referential integrity (no foreign keys), so an application bug that writes a malformed transaction cannot be caught at the database layer. Finally, multi-document transactions in MongoDB (needed for double-entry bookkeeping: debit one account, credit another atomically) incur significant overhead and are limited to 60-second duration by default. MongoDB is appropriate for financial data when: (1) write concern is set to \texttt{w:majority} for all writes, (2) the schema is stable enough to not require frequent migrations, (3) transactions are rare (most operations touch a single document), and (4) the team understands that MongoDB's ACID transactions, while genuine, have higher overhead than PostgreSQL's and should be used sparingly. For a core financial ledger, PostgreSQL or a purpose-built ledger database (Tiger Beetle, Fauna) is a safer default.
+\end{answerbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{What's Next}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{insightbox}
+\textbf{L1-07 --- Caching (Redis, Memcached, CDN edge caching).}
+
+You have now seen Redis appear in this lesson as a key-value store. L1-07 goes deeper: it covers the caching patterns that sit in front of every database --- both relational and NoSQL --- in production systems. Cache-aside, write-through, write-behind, and read-through are the four patterns. Cache invalidation is the problem that kills more production systems than any other caching mistake. TTLs, LRU eviction, cache stampede, and thundering herd are the failure modes. After L1-07, you will be able to design a complete data tier --- backing database plus cache layer --- and reason precisely about freshness, consistency, and failure scenarios. The combination of L1-05 (Relational), L1-06 (NoSQL), and L1-07 (Caching) is the complete data tier foundation required to unlock Gate 2 and the URL Shortener and Rate Limiter mock interviews.
+\end{insightbox}
+
+\end{document}
