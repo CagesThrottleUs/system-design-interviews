@@ -1,0 +1,497 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[top=2.8cm, bottom=2.8cm, left=3cm, right=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=accent,
+            pdftitle={L1-03 DNS and CDN -- System Design Foundations},
+            bookmarks=true]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{array}
+\usepackage{longtable}
+
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{lightbg}{HTML}{F4F6F7}
+\definecolor{quizbg}{HTML}{EBF5FB}
+\definecolor{termbg}{HTML}{EAF2FF}
+\definecolor{curiobg}{HTML}{F5EEF8}
+\definecolor{greenbg}{HTML}{EAFAF1}
+\definecolor{notebg}{HTML}{FDF2E9}
+\definecolor{accentlight}{HTML}{FADBD8}
+
+\titleformat{\section}{\large\bfseries\color{highlight}}{\thesection.}{0.6em}{}[\vspace{2pt}\color{highlight!60}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{primary}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\color{primary!80}}{}{0em}{}
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{highlight}\textbf{L1-03 --- DNS \& CDN}}
+\fancyhead[R]{\small\color{primary!70}System Design Interview Prep}
+\fancyfoot[C]{\small\color{primary!60}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{highlight!40}\leaders\hrule height \headrulewidth\hfill}}
+
+\tcbuselibrary{skins, breakable, hooks}
+\newtcolorbox{termbox}[1]{enhanced,breakable,colback=termbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,title={#1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{industrybox}[1]{enhanced,breakable,colback=greenbg,colframe=highlight!50!black,coltitle=white,fonttitle=\bfseries\small,title={Industry Data: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight!60!black,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{trapbox}[1]{enhanced,colback=accentlight,colframe=accent,coltitle=white,fonttitle=\bfseries\small,title={Interview Trap: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=accent,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{thinkbox}{enhanced,colback=notebg,colframe=accent!60,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=3pt,rightrule=0pt,toprule=0pt,bottomrule=0pt}
+\newtcolorbox{curiobox}[1]{enhanced,breakable,colback=curiobg,colframe=primary!60,coltitle=white,fonttitle=\bfseries\small,title={Q: #1},left=8pt,right=8pt,top=6pt,bottom=6pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!70,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{quizbox}{enhanced,breakable,colback=quizbg,colframe=highlight,coltitle=white,fonttitle=\bfseries,title={Self-Quiz},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=highlight,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{answerbox}{enhanced,breakable,colback=lightbg,colframe=primary!40,coltitle=white,fonttitle=\bfseries\small,title={Model Answers},left=10pt,right=10pt,top=8pt,bottom=8pt,attach boxed title to top left={yshift=-2.5mm,xshift=6mm},boxed title style={colback=primary!60,sharp corners,left=4pt,right=4pt}}
+\newtcolorbox{insightbox}{enhanced,colback=primary!5,colframe=primary,left=8pt,right=8pt,top=6pt,bottom=6pt,leftrule=4pt,rightrule=0.4pt,toprule=0.4pt,bottomrule=0.4pt}
+
+\setstretch{1.15}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title Page ───────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \vspace*{3cm}
+  \begin{center}
+    {\footnotesize\color{primary!60}\texttt{LESSON L1-03 \quad\textbullet\quad LAYER 1: FOUNDATIONS}}\\[0.8cm]
+    {\Huge\bfseries\color{primary} DNS \& CDN}\\[0.5cm]
+    {\Large\color{primary!70} The Internet's Phone Book and Its Delivery Network}\\[0.4cm]
+    {\normalsize\color{primary!50} How names become addresses, and how content reaches users at the speed of geography}\\[2.5cm]
+    {\color{highlight!60}\rule{\linewidth}{0.4pt}}
+    \vspace{0.4cm}
+    {\small\color{primary!60}
+      System Design Interview Prep \quad\textbullet\quad Edition 2025\\[0.2cm]
+      Data sourced from: Cloudflare Engineering Blog (2024), AWS Route 53 Documentation (2024),\\
+      Netflix Open Connect Program, DNSPerf (2024), Akamai Technologies
+    }
+    \vspace{0.8cm}
+    {\color{highlight!60}\rule{\linewidth}{0.4pt}}
+  \end{center}
+
+  \vspace{1.5cm}
+  \begin{insightbox}
+    \textbf{Why This Lesson Matters}
+
+    Every system design interview that involves serving content to users globally will touch DNS and CDNs within the first five minutes. When you design a URL shortener, the redirect resolution is a DNS-level concern. When you design a video streaming service, your interviewer expects you to explain why you do not stream video from a single origin server. When you discuss zero-downtime deployments, cache invalidation at the CDN layer is what makes or breaks your answer.
+
+    This lesson closes the gap between knowing these terms and being able to reason about them mechanically. After completing it, you will be able to draw the resolution chain on a whiteboard, explain why a DNS change takes time to propagate, and articulate the exact tradeoff between CDN cache TTL and content freshness --- the kind of precision that separates ICT3-level candidates from the rest.
+  \end{insightbox}
+\end{titlepage}
+\nopagecolor
+
+% ── Table of Contents ─────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Why This Exists: The Problems DNS and CDNs Solve}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The early internet was small enough that a single text file called \texttt{HOSTS.TXT} maintained by Stanford Research Institute contained every hostname on the network. System administrators would periodically download a fresh copy. By the early 1980s this arrangement was collapsing under its own weight. Every time a new machine joined the ARPANET, the file had to be updated centrally and redistributed. There was no mechanism to verify correctness, no hierarchy, and absolutely no way to scale. In 1983, Paul Mockapetris published RFCs 882 and 883 describing the Domain Name System, a distributed, hierarchical, caching database that would replace the hosts file permanently.
+
+The problem DNS solved was this: humans need memorable names, computers need numeric addresses, and the mapping between them must be updatable by millions of independent organizations without any central bottleneck. The solution was to distribute authority: each organization manages its own small piece of the namespace and tells the rest of the world where to find that piece. The internet's routing infrastructure handles the rest.
+
+The problem CDNs solve is different but related. Once DNS can resolve a name to an address, you still face a physics problem. A user in Sydney requesting a web page served from a data center in Virginia has to traverse roughly 16,000 kilometers of optical fiber. At the speed of light through glass, that one-way trip takes approximately 77 milliseconds. A typical HTTP request requires multiple round trips: TCP handshake, TLS handshake, the request itself. Before the user's browser renders a single pixel, it may have waited 400--600 milliseconds. For a slow connection, multiply that. Content Delivery Networks exist because the speed of light is a hard constraint, and the only engineering response to a hard constraint is to move the content physically closer to the user.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{DNS: From Name to Address}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{The Resolution Chain}
+
+When your laptop needs to connect to \texttt{api.example.com}, it does not ask one server. It follows a delegation chain that mirrors the hierarchy of the domain name itself, read right to left.
+
+\begin{termbox}{The Full DNS Resolution Chain}
+\textbf{Step 1 --- OS cache check.} Your operating system first consults its local DNS cache. If a recent lookup for the same hostname exists and has not expired, it returns immediately. No network request at all.
+
+\textbf{Step 2 --- Recursive resolver.} If the cache misses, the OS forwards the query to a recursive resolver --- usually your ISP's DNS server or a public resolver like Cloudflare's 1.1.1.1 or Google's 8.8.8.8. This resolver is your agent; it will do all the legwork.
+
+\textbf{Step 3 --- Root nameserver.} The recursive resolver, if it has no cached answer, queries one of the 13 root nameserver clusters (identified as \texttt{a.root-servers.net} through \texttt{m.root-servers.net}). The root does not know where \texttt{api.example.com} is, but it knows who manages the \texttt{.com} top-level domain. It responds with the address of the \texttt{.com} TLD nameserver.
+
+\textbf{Step 4 --- TLD nameserver.} The recursive resolver queries the \texttt{.com} TLD nameserver. It does not know \texttt{api.example.com} specifically, but it knows which nameserver is authoritative for \texttt{example.com}. It returns that address.
+
+\textbf{Step 5 --- Authoritative nameserver.} The recursive resolver queries the authoritative nameserver for \texttt{example.com}. This is the server that actually holds the DNS records configured by the domain owner. It returns the final answer: the IP address of \texttt{api.example.com}.
+
+\textbf{Step 6 --- Response with TTL.} The recursive resolver returns the IP to your OS and caches the result for the duration specified by the record's TTL. Your OS caches it too, and your browser makes the TCP connection.
+\end{termbox}
+
+In practice, the recursive resolver almost always has the root nameserver addresses cached (they change rarely) and often has TLD nameserver addresses cached too. A realistic uncached lookup takes two to three network round trips, not five. On well-optimized resolvers, this completes in under 20 milliseconds for nearby data centers.
+
+\begin{thinkbox}
+\textbf{But wait --- why are there only 13 root nameserver addresses?} IPv4 addresses are scarce, but that is not the primary reason. The original DNS protocol fit all root nameserver records into a single UDP packet, which was limited to 512 bytes. Thirteen \texttt{A} records fit neatly within that limit. Today there are hundreds of physical machines answering those 13 addresses, made possible by anycast routing (covered below). The number 13 is historical, not a fundamental architectural constraint.
+\end{thinkbox}
+
+\subsection{DNS Record Types You Must Know}
+
+DNS is not just a name-to-IP lookup system. It is a general-purpose distributed database keyed by hostname, and it stores different types of records for different purposes.
+
+\begin{termbox}{Essential DNS Record Types}
+\begin{tabular}{@{}p{2cm}p{11.5cm}@{}}
+\textbf{A} & Maps a hostname to an IPv4 address. The most common record. \texttt{example.com $\to$ 93.184.216.34} \\[4pt]
+\textbf{AAAA} & Maps a hostname to an IPv6 address. The quad-A record, named for the 128-bit (4x longer) address. \\[4pt]
+\textbf{CNAME} & Canonical Name. Aliases one hostname to another. \texttt{www.example.com $\to$ example.com}. The browser then resolves the target. Important: a CNAME record cannot coexist with other record types on the same hostname. This creates the ``CNAME at apex'' problem discussed later. \\[4pt]
+\textbf{MX} & Mail Exchange. Directs email for a domain to a mail server, with a priority value. \\[4pt]
+\textbf{NS} & Nameserver. Declares which servers are authoritative for a domain. These are set at the registrar and change rarely. \\[4pt]
+\textbf{TXT} & Free-form text. Used for domain ownership verification (Google Search Console, AWS ACM), SPF email policy, and DKIM keys. \\[4pt]
+\textbf{SRV} & Service record. Specifies host, port, protocol, and priority for a service. Used by SIP, XMPP, and other protocols. \\[4pt]
+\textbf{PTR} & Pointer record. Reverse DNS --- maps an IP address back to a hostname. Used for spam filtering and logging. \\[4pt]
+\textbf{SOA} & Start of Authority. Contains administrative metadata for a zone: the primary nameserver, responsible email address, serial number, and timing parameters including the negative caching TTL.
+\end{tabular}
+\end{termbox}
+
+\subsection{TTL: Why DNS Changes Take Time}
+
+Every DNS record carries a Time-to-Live value in seconds. When a recursive resolver fetches a record, it caches it for exactly that many seconds. During that window, every query for that hostname is answered from cache without touching the authoritative nameserver. This is the mechanism that makes DNS scale --- billions of queries per day are answered from cache rather than reaching the authoritative servers.
+
+The consequence is propagation delay. If you change an A record from IP address A to IP address B, resolvers that cached the old record will continue serving the old value until their TTL expires. With a TTL of 86400 seconds (one day), it can take up to 24 hours for the new record to propagate globally. With a TTL of 300 seconds (five minutes), it propagates within five minutes.
+
+\begin{industrybox}{AWS Route 53 TTL Recommendations, 2024}
+AWS Route 53's published best practices recommend TTLs of 60--300 seconds for records pointing to production endpoints, so that failover and DNS-based routing changes take effect quickly. For records that almost never change, such as NS records, Route 53 recommends the default of 172,800 seconds (two days). The pre-migration strategy is explicit: lower the TTL to 60 seconds \textit{before} making any change, wait for the old TTL to expire across the internet, then make the change. After verifying correctness, raise the TTL back to its normal value. This pattern is essential knowledge for any failover or migration discussion.
+\end{industrybox}
+
+\begin{thinkbox}
+\textbf{If I lower my TTL to 60 seconds right before a migration, does that mean propagation takes 60 seconds?} Almost. It means that \textit{after} the old cached records expire, new queries will use the new record within 60 seconds. But if someone cached your record 10 minutes ago when the TTL was still 3600 seconds, they will hold the old record for up to another 50 minutes. This is why the pre-migration TTL reduction must happen well in advance --- at least as long as the current TTL value.
+\end{thinkbox}
+
+\subsection{Negative Caching and NXDOMAIN}
+
+When a DNS query returns ``this domain does not exist'' (NXDOMAIN), resolvers also cache that negative result. The duration comes from the SOA record's minimum TTL field. AWS Route 53 defaults this to 900 seconds. This matters in system design because if your application tries to look up a service that does not yet exist and caches the negative result, it may continue failing to find the service for 15 minutes even after the DNS record is created.
+
+\subsection{GeoDNS: Routing by Geography at the DNS Layer}
+
+Standard DNS returns the same answer to every resolver in the world. GeoDNS (sometimes called DNS-based traffic management) allows the authoritative nameserver to return different answers based on the geographic location of the requesting resolver. A user in Europe might resolve \texttt{api.example.com} to a European IP, while a user in Asia resolves the same hostname to an Asian IP.
+
+This is how many companies implement global traffic routing cheaply. AWS Route 53 calls it Latency-Based Routing and Geolocation Routing. Cloudflare, Akamai, and other providers offer similar capabilities. The limitation is that resolution happens once and is cached; GeoDNS cannot route individual requests dynamically the way an application-layer load balancer can.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Anycast: The Routing Magic Behind Fast DNS and CDNs}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Unicast networking, the default mode for almost everything on the internet, works on a strict one-to-one principle: one IP address belongs to one physical machine in one location. Anycast breaks this assumption deliberately.
+
+In anycast, many machines in different geographic locations all advertise the same IP address prefix into the global BGP routing table. Internet routers, following the standard shortest-path algorithms they already use, automatically send traffic destined for that IP to whichever anycast node is ``closest'' in BGP terms --- shortest AS-hop path or lowest cost, depending on configuration. Critically, this routing happens in the network infrastructure, not in DNS or in the application.
+
+\begin{termbox}{Anycast in Practice}
+Cloudflare's public DNS resolver at 1.1.1.1 is not a single server. It is hundreds of machines in over 330 cities, each of which announces the IP prefix \texttt{1.1.1.1/32} into BGP from their respective data centers. When your laptop queries 1.1.1.1, your internet traffic flows to the nearest Cloudflare data center automatically, without any additional DNS lookup or configuration. If that data center goes offline, BGP converges and traffic flows to the next nearest node --- typically within seconds.
+\end{termbox}
+
+The same principle applies to CDN edge nodes. Cloudflare, Fastly, and Akamai all use anycast for their CDN traffic. A single \texttt{CNAME} that points to the CDN resolves to an anycast IP, and BGP routing delivers that request to the nearest PoP.
+
+\begin{industrybox}{Cloudflare Scale, 2024}
+As of 2024, Cloudflare operates in more than 330 cities across 120+ countries, handling an average of 63 million HTTP/S requests per second and 42 million DNS queries per second. The network processes roughly 20\% of the world's web traffic and answers approximately 4.3 trillion DNS queries per day. DNSPerf, an independent DNS monitoring service, consistently ranks Cloudflare's 1.1.1.1 as the world's fastest public DNS resolver, reporting sub-5ms query times in many locations. This scale is made possible by anycast: a single IP address front-ends the entire global infrastructure.
+\end{industrybox}
+
+It is worth distinguishing anycast from GeoDNS. GeoDNS makes routing decisions at the DNS resolution layer, returning different IPs based on where the resolver is located. Anycast makes routing decisions at the IP routing layer after DNS has returned a single IP, directing traffic based on network topology. Modern CDNs often combine both: GeoDNS routes users to the right regional cluster, and anycast routes within the cluster to the best node.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{CDN Architecture: Origin, Edge, and the Cache Hierarchy}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{The Core Components}
+
+A CDN has three conceptual tiers, each closer to the user than the last.
+
+\begin{termbox}{CDN Architecture Layers}
+\textbf{Origin Server.} The authoritative source of truth for your content. This is your application server or storage bucket. It is the only place where content is generated or first stored. In a well-designed CDN setup, the origin should almost never be reached by end users directly.
+
+\textbf{Edge Nodes (PoPs --- Points of Presence).} The CDN's geographically distributed servers. A PoP might be a single machine or a rack of machines in a colocation facility. There may be hundreds of PoPs globally. When a user requests content, their request goes to the nearest PoP.
+
+\textbf{Mid-tier Cache (Shield or Regional Cache).} Many CDNs introduce an intermediate caching layer between edge nodes and the origin. If an edge node in a small city misses the cache, instead of going all the way to the origin, it queries a regional shield server that aggregates requests from many edge nodes. This dramatically reduces origin traffic and the number of origin connections that must be maintained.
+\end{termbox}
+
+\subsection{The Cache Hit / Cache Miss Lifecycle}
+
+The economics of a CDN depend entirely on the cache hit ratio: the percentage of requests that are served from the edge without reaching the origin. A high-performing CDN with well-configured cache policies should achieve cache hit ratios of 95--99\% for static content. That means the origin serves fewer than one in twenty requests. The other nineteen are served from edge nodes, at lower latency, with no origin compute required.
+
+A cache miss occurs when a user requests content that the edge node does not have cached --- either because it has never been requested at this PoP, or because the cached copy has expired. The edge node then fetches the content from the origin (or from the mid-tier cache), serves it to the user, and stores a copy locally for future requests.
+
+\begin{industrybox}{CDN Cache Hit Ratios, 2024}
+Independent analysis and CDN provider data consistently show that static-content-heavy websites (images, CSS, JavaScript, video segments) achieve cache hit ratios of 95--99\%. Akamai, which holds roughly 30--40\% of the global CDN market and operates over 325,000 servers across 130+ countries, reports that its largest media customers typically exceed 99\% cache hit ratios for video-on-demand content. Shopify's 2023 infrastructure analysis found that e-commerce platforms maintaining cache hit ratios above 95\% experienced 20\% lower bounce rates and 35\% higher conversion rates, illustrating the direct business impact of cache architecture.
+\end{industrybox}
+
+\subsection{How CDNs Reduce Latency Beyond Caching}
+
+Geographic proximity is the most obvious latency reduction, but CDNs do more than shorten the physical distance. Edge nodes maintain persistent TCP and TLS connections back to the origin and to each other. When a user's browser connects to an edge node, the TLS handshake completes against the nearby edge node rather than the distant origin --- saving the full round-trip time of the TLS negotiation across a continental link. HTTP/2 and HTTP/3 multiplexing on these persistent connections further amortizes connection overhead.
+
+CDNs also typically sit on higher-quality network infrastructure than the general internet. Cloudflare, Akamai, and Fastly operate private backbone networks that bypass congested public internet exchange points for origin-to-edge traffic. A cache miss at a Singapore edge node fetching content from a Virginia origin will traverse Cloudflare's private backbone rather than the public internet, resulting in more predictable latency.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Cache Invalidation: The Hardest Problem}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Phil Karlton famously said there are only two hard things in computer science: cache invalidation and naming things. He was right. Once content is distributed across thousands of edge nodes, making those nodes serve updated content is genuinely difficult.
+
+\subsection{TTL-Based Expiry}
+
+The simplest mechanism is time-based expiry. Content is cached with a \texttt{Cache-Control: max-age=N} header, and each edge node discards its cached copy when \texttt{N} seconds have elapsed. The tradeoff is explicit: a longer TTL means fewer origin requests and better performance, but also means users may see stale content for longer after an update.
+
+For a news article that is published and then never changed, a one-year TTL is appropriate. For a homepage that updates daily, a one-hour TTL is reasonable. For an API response that changes per-user, caching at the CDN is inappropriate entirely.
+
+\subsection{Cache Purge APIs}
+
+Most CDN providers expose an API for explicit cache invalidation. When you deploy a new version of your application, your CI/CD pipeline can call the CDN's purge API to invalidate specific URLs or path patterns. Cloudflare calls this ``Cache Purge'' and supports purging by URL, by tag, or by prefix. Fastly's ``instant purge'' was a market differentiator for years, claiming sub-150ms purge propagation globally.
+
+The problem with purge-based invalidation is that it is eventually consistent and operationally complex. Large purges touching millions of URLs can take non-trivial time, and there is a window during which some edge nodes serve stale content while others serve fresh content. You must also remember to purge, which means your deployment pipeline must be tightly coupled to your CDN configuration.
+
+\subsection{Content-Addressed URLs: The Correct Pattern}
+
+The most robust pattern for static assets is to avoid the invalidation problem entirely by making cache invalidation unnecessary. This is achieved by embedding a hash of the content in the filename itself.
+
+When a JavaScript file \texttt{app.js} is built, the build pipeline computes a hash of the file's contents and names the output \texttt{app.8f3d9b2a.js}. The CDN caches this file with \texttt{Cache-Control: max-age=31536000, immutable} --- a one-year TTL, flagged as immutable. Because the URL encodes the content, the URL will never change unless the content changes. When you deploy a new version of \texttt{app.js}, the build pipeline generates \texttt{app.4c7e1f8b.js} --- a completely new URL. Old clients serving the previous URL continue to get valid cached content. New clients, whose HTML references the new URL, fetch the new file. No invalidation is required because the old cached file at the old URL is still correct.
+
+\begin{industrybox}{Asset Fingerprinting at Scale, 2024}
+This pattern is now the industry standard for front-end deployment. Webpack, Vite, Rollup, and virtually every modern build tool support content-hashing natively. The canonical deployment workflow is: build with hashed filenames, set max-age=31536000 on all hashed assets, deploy the new HTML and hashed assets simultaneously. The HTML itself is served with a short TTL (e.g., 60 seconds) or is not cached at the CDN at all, so users always receive a fresh HTML document pointing to the latest hashed assets. This gives you infinite caching for assets and always-fresh HTML with zero invalidation operations.
+\end{industrybox}
+
+\begin{trapbox}{Purging the Wrong Thing}
+A common interview mistake is describing a CDN invalidation strategy that relies on purging file paths after deployment, without mentioning content-addressed URLs. When asked ``how do you handle cache invalidation for static assets after a deployment?'', answering ``we call the CDN purge API'' is technically correct but architecturally naive. The follow-up question --- ``what happens between deployment and purge propagation?'' --- reveals the flaw: there is a window of inconsistency. The correct answer distinguishes between static assets (use content-addressed URLs, never purge) and HTML/API responses (short TTL or no-cache, purge only when necessary). Name the pattern explicitly: ``We use content-addressed filenames with immutable cache headers.''
+\end{trapbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Netflix Open Connect: A CDN Built Inside the ISPs}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Netflix's solution to the CDN problem is unusual enough to be worth examining as a case study. Rather than renting capacity from Akamai or Cloudflare, Netflix built its own CDN called Open Connect, and deployed it \textit{inside} ISP networks.
+
+Netflix supplies qualifying ISPs with Open Connect Appliances (OCAs) --- purpose-built servers with large amounts of storage --- at no cost to the ISP. The ISP provides rack space, power, and network connectivity. In return, Netflix content is served directly from the ISP's own network, which means Netflix video traffic never has to traverse the ISP's upstream connections to the internet. As of 2025, Netflix has deployed over 19,000 OCA servers at more than 1,500 ISP locations in over 100 countries. Close to 95\% of Netflix's global video traffic is delivered via direct connections between Open Connect and residential ISPs.
+
+Netflix analyzes consumption patterns globally and proactively fills OCA storage with popular titles before they are requested. When a subscriber in a given city presses play, the video streams from an OCA at their local ISP, at minimal latency and without consuming any of the ISP's transit bandwidth. The ISP reduces its transit costs; Netflix ensures quality; the subscriber gets faster video.
+
+This model illustrates an important system design principle: when you are at sufficient scale, it can be more economical and more performant to build your own infrastructure than to rent it. Netflix's video traffic volume is large enough that the capital cost of OCA hardware is justified by the savings on transit fees and the competitive advantage of superior streaming quality.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{What to Put on a CDN vs. What Not To}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The decision of whether to serve content through a CDN is the most important CDN decision you make in a system design interview. The question the interviewer is really asking is: do you understand the difference between cacheable and non-cacheable content?
+
+\subsection{Content Well-Suited for CDN Delivery}
+
+Static assets are the canonical CDN use case. JavaScript bundles, CSS files, images, fonts, icons, PDF files, and HTML documents that do not change per-user can all be cached at the edge indefinitely (with content-addressed URLs). Video segments for streaming --- the individual chunks in HLS or DASH adaptive bitrate formats --- are ideal: they are large, identical for all users at the same quality level, and requested millions of times.
+
+Software downloads, game patches, and large binary files also belong on a CDN. The per-byte cost of CDN transfer is lower than origin compute plus transit, and CDN bandwidth is geographically distributed so downloads are faster for users everywhere.
+
+\subsection{Content That Must Not Be Cached}
+
+Personalized API responses must not be cached at the CDN, or must be cached only with user-specific cache keys. The canonical failure mode is caching a response that contains the logged-in user's name, email, or private data and then serving that cached response to a different user. This is not hypothetical: several companies have experienced this failure in production, with serious data exposure consequences.
+
+Highly dynamic content --- live auction prices, stock tickers, sports scores --- that changes faster than the CDN's minimum useful TTL should go to origin directly. Setting a 1-second TTL on a CDN for rapidly changing content provides no cache benefit and adds round-trip overhead.
+
+\begin{trapbox}{Caching Authenticated Responses}
+A dangerous interview answer: ``We put everything behind the CDN to maximize performance.'' The immediate follow-up --- ``what about authenticated API responses?'' --- should reveal whether you understand the risk. The correct answer: CDN caching should be opt-in and deliberate. By default, responses with \texttt{Authorization} headers or \texttt{Set-Cookie} headers should not be cached. CDN rules must be configured to vary the cache key on relevant request parameters for any content that is even partially personalized. Explicitly mentioning the \texttt{Vary} header and cache key configuration in your answer demonstrates operational maturity.
+\end{trapbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Choosing and Decision Framework}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{DNS Provider Selection}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lXXX@{}}
+\toprule
+\textbf{Feature} & \textbf{Cloudflare DNS} & \textbf{AWS Route 53} & \textbf{NS1 / UltraDNS} \\
+\midrule
+Speed & Fastest globally (anycast, 330+ PoPs) & Fast, global (100+ PoPs) & Fast, enterprise-grade \\
+Traffic routing & GeoDNS, Argo, load balancing & Latency, geolocation, weighted, failover & Advanced traffic management \\
+TTL minimum & 1 second (proxy mode) & 0 (alias records), 1s otherwise & 1 second \\
+DDoS protection & Built-in (Magic Transit) & Partial (Shield integration) & Optional add-on \\
+Pricing & Free tier + paid plans & Pay per query (\$0.40/M) & Enterprise pricing \\
+Best for & Most web applications, DDoS protection & AWS-native architectures, health-check failover & High-stakes enterprise, complex routing \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{CDN Selection}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lXXX@{}}
+\toprule
+\textbf{Feature} & \textbf{Cloudflare} & \textbf{Akamai} & \textbf{Fastly / AWS CloudFront} \\
+\midrule
+Network scale & 330+ cities, 120+ countries & 130+ countries, 325,000+ servers & Fastly: 90+ PoPs; CloudFront: 600+ PoPs \\
+Cache invalidation & Seconds (tag-based purge) & Minutes (tag-based) & Fastly: sub-150ms; CloudFront: 1--5 min \\
+Edge compute & Workers (V8 isolates) & EdgeWorkers & Fastly Compute; Lambda@Edge \\
+DDoS mitigation & Integrated, automatic & Enterprise-grade, separate licensing & Limited native; requires Shield add-on \\
+Pricing model & Flat-rate plans & Negotiated enterprise contracts & Pay per request + transfer \\
+Best for & Most new applications; start-ups to mid-market & Largest enterprises, media, software delivery & Fastly: API acceleration; CloudFront: AWS ecosystem \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Decision Tree for CDN Caching}
+
+When designing a system, apply this logic for each content type:
+
+\begin{enumerate}[leftmargin=2em, itemsep=4pt]
+  \item Is the content identical for all users, or does it vary by user identity, session, or account? If it varies per user $\to$ do not cache at the CDN (or use per-user cache keys with extreme care).
+  \item Does the content change faster than once per minute? If yes $\to$ assess whether CDN caching provides real benefit; consider very short TTLs or cache bypass.
+  \item Is the content a static asset with a content-addressed URL? If yes $\to$ set \texttt{max-age=31536000, immutable} and cache aggressively.
+  \item Is the content large binary data (video, software download)? If yes $\to$ CDN is essential; origin cannot sustain the transfer volume.
+  \item Is the content HTML or an API response that changes per deployment but not per user? If yes $\to$ use short TTL (60--300 seconds) and purge-on-deploy.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Critical Numbers Reference}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+\toprule
+\textbf{Metric} & \textbf{Value / Context} & \textbf{Source} \\
+\midrule
+DNS root nameserver clusters & 13 logical clusters (A--M); hundreds of physical anycast nodes & IANA, 2024 \\
+Cloudflare network size & 330+ cities, 120+ countries & Cloudflare, 2024 \\
+Cloudflare requests/sec & 63 million HTTP/S requests per second (average) & Cloudflare, 2024 \\
+Cloudflare DNS queries/day & 4.3 trillion DNS queries per day & Cloudflare, 2024 \\
+Cloudflare internet traffic share & Approximately 20\% of global web traffic & Cloudflare, 2024 \\
+Akamai servers & 325,000+ servers across 130+ countries & Akamai, 2024 \\
+Akamai internet traffic share & Up to 30\% of worldwide internet traffic & Akamai, 2024 \\
+Netflix OCA deployments & 19,000+ appliances at 1,500+ ISP locations in 100+ countries & Netflix Open Connect, 2025 \\
+Netflix OCA traffic share & \textasciitilde{}95\% of Netflix traffic via direct ISP connections & Netflix Open Connect, 2025 \\
+Typical CDN cache hit ratio & 95--99\% for static content & Akamai, Fastly, Cloudflare \\
+Recommended production DNS TTL & 60--300 seconds & AWS Route 53, 2024 \\
+NS record TTL & 172,800 seconds (2 days) recommended & AWS Route 53, 2024 \\
+Content-addressed asset TTL & 31,536,000 seconds (1 year), immutable & Industry standard \\
+Speed of light through fiber & \textasciitilde{}200,000 km/s (2/3 of vacuum speed) & Physics \\
+Sydney--Virginia one-way latency & \textasciitilde{}77ms minimum (fiber distance) & Network physics \\
+DNS negative caching (NXDOMAIN) & 900 seconds (Route 53 default) & AWS Route 53, 2024 \\
+Fastly instant purge latency & Under 150ms globally & Fastly, 2023 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Design Application}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Application 1: Design a Global URL Shortener}
+
+A URL shortener like \texttt{bit.ly} must redirect users from a short URL to a long URL with minimal latency. The interviewer will expect you to address how DNS and the CDN fit into this.
+
+The redirect service is fundamentally a key-value lookup: short code $\to$ long URL. The lookup must be fast globally. The naive approach --- host the redirect service in one data center --- fails because a user in Singapore hits a server in Virginia for every redirect, adding 150--200ms per click. The correct approach has two layers.
+
+First, use GeoDNS or anycast to route users to the nearest instance of the redirect service. The short URL resolves to an anycast address, and the redirect service runs in multiple regions. Second, for the most popular short codes, the redirect response itself can be cached at the CDN edge. A redirect response is just an HTTP 301 or 302 response with a \texttt{Location} header. Setting \texttt{Cache-Control: max-age=3600} on 301 redirects for popular URLs means the CDN edge node handles millions of redirects without touching the origin. For mutable redirects (where the destination URL might change), use 302 with a short TTL. For permanent redirects, use 301 with a long TTL.
+
+\subsection{Application 2: Design a Video Streaming Service}
+
+Design Netflix. The first thing you say about content delivery should be: ``We do not stream video from a single origin server.'' Video streaming is the canonical CDN use case. Here is the architecture.
+
+Video is transcoded into multiple quality levels and segmented into small chunks (typically 2--10 seconds each) in HLS or DASH format. Each chunk is a static file. These static files are pushed to CDN edge nodes ahead of playback. When a user presses play, their player fetches the manifest file (a small text file listing all the chunk URLs), then fetches individual chunks from the nearest CDN edge. Because every user watching the same content at the same quality level is fetching identical byte ranges, the cache hit ratio approaches 100\% after the first few viewers.
+
+At Netflix's scale, this becomes the Open Connect model: push the most popular content directly to ISP-deployed appliances. Content that does not fit on the OCA (long-tail content) falls back to Netflix's cloud origin. This two-tier CDN approach (embedded appliances for popular content, cloud CDN for long tail) is the correct detailed answer to ``how does Netflix deliver video?''
+
+\subsection{Application 3: Zero-Downtime Deployment for a Global Web App}
+
+You are deploying a new version of a web application. You have JavaScript, CSS, and image assets totaling 50MB, and an HTML entry point. How do you ensure users do not see a mix of old and new assets during deployment?
+
+The answer is content-addressed deployment. Your CI/CD pipeline builds the front end with hashed filenames. The old HTML references \texttt{app.8f3d9b2a.js}; the new HTML references \texttt{app.4c7e1f8b.js}. You upload both old and new asset files to object storage (S3, GCS), then update the CDN to serve the new HTML. Because the HTML has a short TTL (or is served uncached via \texttt{no-store}), users quickly receive the new HTML. The new HTML references only new asset URLs, which the CDN fetches from origin on first miss and then caches. Old asset URLs continue to be valid; users who were midway through a session with old HTML still get valid old assets from the CDN cache. No purge required, no mixed-version state, no downtime.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Curiosity Corner}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{curiobox}{What happens when the DNS resolver itself goes down?}
+Recursive resolvers are critical infrastructure. ISP resolvers sometimes fail during outages. Your OS maintains a fallback: most systems are configured with two or more resolver IP addresses (primary and secondary). If the primary fails, the secondary is tried. For robustness, configure your systems with resolvers from different providers --- for example, 1.1.1.1 (Cloudflare) as primary and 8.8.8.8 (Google) as secondary. They both use anycast, meaning a single resolver IP front-ends an entire global network. The failure of one physical machine is transparent. The failure of an entire ISP's resolver network is rarer but does happen, which is why large organizations run their own authoritative resolvers in addition to relying on public ones.
+\end{curiobox}
+
+\begin{curiobox}{What is the CNAME-at-apex problem and how is it solved?}
+A domain's ``apex'' is the bare domain itself: \texttt{example.com} without any subdomain prefix. DNS standards forbid a CNAME record at the apex because the apex must have an NS record and an SOA record, and a CNAME cannot coexist with other record types. This is a problem because CDNs and cloud services typically require you to point your domain to them using a CNAME. Cloudflare solves this with ``CNAME Flattening'' (also called ``ALIAS'' records or ``ANAME'' records by other providers): Cloudflare's authoritative nameserver resolves the CNAME target at query time and returns the resulting A/AAAA records directly. From the resolver's perspective it looks like a normal A record. This is why you can use Cloudflare's CDN with the bare apex domain without violating DNS standards.
+\end{curiobox}
+
+\begin{curiobox}{How does DNSSEC protect against cache poisoning?}
+In 2008, security researcher Dan Kaminsky disclosed a critical vulnerability in DNS: an attacker could poison a recursive resolver's cache by sending forged responses faster than the authoritative nameserver, guessing the 16-bit transaction ID in the query. If successful, the resolver would cache a fake record, directing all users to an attacker-controlled IP. DNSSEC (DNS Security Extensions) addresses this by adding cryptographic signatures to DNS records. Each zone signs its records with a private key; resolvers can verify signatures using the public key published in the DNS chain. A forged response cannot be signed correctly and is rejected. The tradeoff: DNSSEC requires key management and rollover procedures, increases DNS response sizes significantly (signatures are large), and is not universally deployed --- major zones including most \texttt{.com} domains have DNSSEC enabled, but end-to-end validation depends on resolver support.
+\end{curiobox}
+
+\begin{curiobox}{Can I run my own CDN, and why would I want to?}
+Yes, and Netflix is the most famous example. Running your own CDN makes economic sense when your traffic volume is large enough that the savings on third-party CDN fees exceed the capital and operational cost of your own infrastructure. Netflix's Open Connect model is extreme: deploying servers inside ISP networks eliminates transit costs entirely for those ISPs. At smaller scales, companies sometimes deploy their own CDN PoPs at strategic IXPs (Internet Exchange Points) for latency-sensitive applications. Gaming companies occasionally do this for game client downloads. The general rule: third-party CDNs are economically superior below roughly 1--5 Tbps of sustained traffic, above which the math may favor owned infrastructure. Most companies never reach this threshold.
+\end{curiobox}
+
+\begin{curiobox}{What is the difference between a CDN and a reverse proxy?}
+A reverse proxy sits in front of your origin server and forwards requests to it. A CDN is a geographically distributed reverse proxy network. All CDNs are reverse proxies, but not all reverse proxies are CDNs. Nginx, HAProxy, and Traefik are reverse proxies typically deployed in a single location (or a few) close to your origin. They handle load balancing, TLS termination, and request routing. A CDN like Cloudflare takes the same concept and operates it across hundreds of PoPs globally. The CDN adds geographic distribution, cache hit optimization across millions of unique visitors, and edge compute capabilities. In practice, most architectures use both: an application-layer reverse proxy inside each data center for routing among internal services, and a CDN at the internet edge for geographic distribution and caching.
+\end{curiobox}
+
+\begin{curiobox}{How does a CDN handle HTTPS if the TLS certificate is for my domain?}
+For a CDN to terminate TLS on behalf of your origin, it needs a certificate that is valid for your domain. There are two models. In the first (most common), the CDN generates and manages a TLS certificate for your domain --- Cloudflare and most providers do this automatically via Let's Encrypt or their own certificate authority. The connection between the CDN edge and your origin can use a separate certificate or even be unencrypted (though the latter is poor practice). In the second model (``bring your own certificate''), you upload your own certificate's private key to the CDN. This requires trusting the CDN provider with your private key, which has obvious security implications. Between the CDN edge and the origin, a separate origin certificate (sometimes a self-signed one) is used. This means users see valid HTTPS, but the CDN is an active man-in-the-middle. For most applications this is the intended design; for applications with regulatory requirements around encryption in transit, the threat model must be evaluated carefully.
+\end{curiobox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Self-Quiz}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\newpage
+\begin{quizbox}
+\textbf{Interviewer-Style Probes --- attempt these before reading the model answers.}
+
+\medskip
+\textbf{Q1.} Walk me through exactly what happens, step by step, when a user types \texttt{https://api.example.com} into their browser for the first time. Start from the moment the browser needs an IP address and end at the moment it has one. Include every party involved.
+
+\medskip
+\textbf{Q2.} You are migrating your primary database from region A to region B. Your API server uses the database hostname \texttt{db.internal.example.com}. What DNS-specific steps must you take to ensure minimal downtime during the migration, and why?
+
+\medskip
+\textbf{Q3.} A product manager tells you that a critical bug fix was deployed 30 minutes ago but some users are still seeing the old behavior. Your CDN is caching the JavaScript bundle. What are three distinct root causes for why users might still see old content, and how do you fix each?
+
+\medskip
+\textbf{Q4.} You are designing a video streaming service that must serve 10 million concurrent viewers globally at 4K bitrate (approximately 25 Mbps per stream). Describe your content delivery architecture. Why is a single origin server insufficient, and what is the correct approach?
+
+\medskip
+\textbf{Q5.} Your API endpoint \texttt{GET /user/profile} returns a JSON response containing the authenticated user's name, email, and subscription tier. A colleague suggests putting this endpoint behind the CDN with a 5-minute TTL to reduce origin load. What is wrong with this suggestion, and what is the correct approach for reducing origin load for this endpoint?
+\end{quizbox}
+
+\newpage
+\begin{answerbox}
+\textbf{A1. DNS Resolution Chain.}
+(1) Browser checks its own DNS cache. (2) If missed, OS checks the system DNS cache. (3) If missed, OS queries the configured recursive resolver (e.g., 1.1.1.1). (4) Recursive resolver checks its own cache. (5) On cache miss, resolver queries a root nameserver, which returns the address of the \texttt{.com} TLD nameserver. (6) Resolver queries the \texttt{.com} TLD nameserver, which returns the address of \texttt{example.com}'s authoritative nameserver. (7) Resolver queries the authoritative nameserver, which returns the A record (IP address) for \texttt{api.example.com} along with its TTL. (8) Resolver caches the result and returns the IP to the OS. (9) OS caches the result and returns the IP to the browser. Strong answers note that steps 5--7 are often partially cached by the resolver, making real-world lookups faster, and mention anycast routing ensuring the recursive resolver query reaches the nearest infrastructure.
+
+\medskip
+\textbf{A2. Database Migration DNS Steps.}
+First, \textit{before} the migration, lower the TTL for \texttt{db.internal.example.com} to 60 seconds. Wait at least as long as the current TTL (e.g., if current TTL is 3600 seconds, wait 1 hour) to ensure all resolvers have expired the old cached record and fetched the new shorter-TTL record. Then perform the database migration and switch. Update the DNS A record to point to the new database IP in region B. With a 60-second TTL, clients that cache the old record will have it expire within 60 seconds and resolve the new address. After verifying the migration, raise the TTL back to a normal value. Failure to lower the TTL in advance is the single most common DNS migration mistake.
+
+\medskip
+\textbf{A3. Three Causes of Stale CDN Content.}
+(1) \textit{CDN TTL not expired:} The CDN cached the old JavaScript bundle and the TTL has not elapsed. Fix: use content-addressed filenames so a new deployment generates a new URL that the CDN has never seen; alternatively, call the CDN purge API immediately post-deployment. (2) \textit{Browser cache:} The user's browser has cached the JavaScript file locally. Fix: content-addressed filenames solve this automatically; alternatively, the HTML can use short-lived or no-cache headers so the browser refetches the HTML and discovers new asset URLs. (3) \textit{Service worker:} If the application registered a service worker, it may be serving cached assets from its own cache, bypassing both the browser's HTTP cache and the CDN. Fix: implement proper service worker update logic with \texttt{skipWaiting()} and \texttt{clients.claim()}, and ensure the service worker's cache is invalidated on new deployments.
+
+\medskip
+\textbf{A4. Video Streaming at Scale.}
+10 million concurrent viewers at 25 Mbps requires 250 Tbps of aggregate bandwidth --- no single data center can sustain this cost-effectively. The correct architecture: transcode video into multiple quality tiers (HLS/DASH), segment into 2--10 second chunks. Use a global CDN (or a Netflix-style custom CDN) to cache video segments at hundreds of PoPs. Each chunk is a static file with a content-addressed URL; cache hit ratios approach 100\% for popular content. At Netflix's scale, deploy OCA appliances inside ISP networks for the most popular titles. Use GeoDNS or anycast to route users to the nearest PoP. Long-tail content (rarely watched) falls back to cloud-origin storage (S3/GCS). Mention adaptive bitrate streaming: the player adjusts quality based on bandwidth, reducing origin load during congestion.
+
+\medskip
+\textbf{A5. Caching Authenticated Responses.}
+Caching \texttt{/user/profile} at the CDN with a shared TTL is dangerous: the CDN could serve User A's profile data to User B, constituting a data breach. Even with a 5-minute TTL, the window of exposure is unacceptable. The correct approaches for reducing origin load on personalized endpoints are: (1) Application-level caching --- cache the profile data in Redis, keyed by user ID, with a short TTL; (2) HTTP caching with private scope --- return \texttt{Cache-Control: private, max-age=60} so individual browsers cache their own data locally but CDN edges do not cache it; (3) CDN with per-user cache keys --- some CDNs support cache key customization using session tokens, but this effectively means each user's data is cached separately, providing no benefit for long-tail users. The right answer for origin load reduction here is server-side caching (Redis/Memcached), not CDN caching.
+\end{answerbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{What's Next: L1-04 --- Load Balancing}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{insightbox}
+\textbf{The Natural Continuation}
+
+You have just learned how DNS routes users to the nearest data center, and how CDNs distribute content geographically. But once a request arrives at a data center --- whether at an origin server or a CDN edge --- something must decide which specific server handles it. That something is a load balancer.
+
+\textbf{L1-04: Load Balancing} picks up exactly where this lesson ends. It covers the algorithms load balancers use to distribute traffic (round-robin, least-connections, consistent hashing), the difference between Layer 4 and Layer 7 load balancing, health checks and automatic failover, and how load balancers interact with session state. Consistent hashing in particular is a concept that will appear in every distributed systems question from caching to database sharding.
+
+The sequence this builds toward: DNS routes globally $\to$ CDN serves from the nearest PoP $\to$ Load balancer distributes within a PoP $\to$ Application servers process the request $\to$ Database handles persistence. By the time you finish L1-08 (Message Queues), you will be ready for Gate 1 and your first mock interview on a notification system.
+\end{insightbox}
+
+\end{document}
