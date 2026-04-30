@@ -1,0 +1,465 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[top=2.8cm,bottom=2.8cm,left=3cm,right=3cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage[table,dvipsnames]{xcolor}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,hooks}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{boxbg}{HTML}{F8F9FA}
+\definecolor{termbg}{HTML}{EBF5FB}
+\definecolor{industrybg}{HTML}{EAFAF1}
+\definecolor{trapbg}{HTML}{FDEDEC}
+\definecolor{thinkbg}{HTML}{FEF9E7}
+\definecolor{curiobg}{HTML}{F4ECF7}
+\definecolor{insightbg}{HTML}{EBF5FB}
+
+\hypersetup{colorlinks=true,linkcolor=linkblue,urlcolor=linkblue,citecolor=linkblue}
+\setstretch{1.15}
+
+\newtcolorbox{termbox}[1]{title={\textbf{Term: #1}},colback=termbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{industrybox}[1]{title={\textbf{Industry: #1}},colback=industrybg,colframe=green!50!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{trapbox}[1]{title={\textbf{Trap: #1}},colback=trapbg,colframe=accent,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{thinkbox}{title={\textbf{Think About It}},colback=thinkbg,colframe=orange!70!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{curiobox}[1]{title={\textbf{Q: #1}},colback=curiobg,colframe=purple!60!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{insightbox}{title={\textbf{Key Insight}},colback=insightbg,colframe=highlight,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{quizbox}[1]{title={\textbf{Question #1}},colback=boxbg,colframe=primary,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+\newtcolorbox{answerbox}[1]{title={\textbf{Answer #1}},colback=industrybg,colframe=green!50!black,coltitle=white,fonttitle=\bfseries\small,breakable,before upper={\sloppy},skin=enhanced}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{primary}{L1-13: Observability \& Monitoring}}
+\fancyhead[R]{\small\textcolor{primary}{System Design Curriculum}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{highlight}}{}{0em}{}
+
+% -----------------------------------------------------------------------
+\begin{document}
+
+% -----------------------------------------------------------------------
+%  TITLE PAGE
+% -----------------------------------------------------------------------
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\small\textcolor{highlight}{\textbf{LESSON L1-13}}}\\[0.4cm]
+  {\Huge\bfseries\color{primary} Observability \& Monitoring}\\[0.6cm]
+  {\large\color{accent} Metrics, Traces, Logs, SLOs, and Alerting\\for Production Systems}\\[1.2cm]
+  \rule{0.5\linewidth}{0.5pt}\\[1.2cm]
+  {\normalsize\color{highlight} System Design Interview Curriculum --- Layer 1: Foundations}\\[0.4cm]
+  {\normalsize Edition 2025}\\[1.8cm]
+
+  \begin{insightbox}
+    \textbf{Why This Lesson Matters}
+
+    ``How do you know it's working?'' is one of the most reliably probing questions asked by senior interviewers at Apple, Google, and Meta. It appears in system design rounds precisely because it distinguishes engineers who have operated systems from those who have only built them. Candidates who sketch a notification pipeline, a rate limiter, or a payment service and say nothing about metrics, tracing, or alerting signal to the interviewer that they have never been on-call for production traffic.
+
+    Observability is not a feature you add after launch. It is the instrumentation that lets you reason about a system you cannot directly inspect---and every senior engineer is expected to treat it as a first-class design concern, woven into the architecture from the first component diagram.
+
+    Data sources: Netflix TechBlog (2024), Grafana Observability Survey (2024), CNCF Annual Survey (2024), Google SRE Workbook (2024 edition), Cloudflare incident postmortem (June 2024).
+  \end{insightbox}
+
+  \vfill
+  {\small\textcolor{gray}{Compiled with \texttt{pdflatex} --- 2025}}
+\end{titlepage}
+
+% -----------------------------------------------------------------------
+%  TABLE OF CONTENTS
+% -----------------------------------------------------------------------
+\tableofcontents
+\newpage
+
+% -----------------------------------------------------------------------
+%  1.  WHY THIS EXISTS
+% -----------------------------------------------------------------------
+\section{Why This Exists}
+
+On October 4, 2021, Facebook went dark for six hours---not because its application code was buggy, but because a BGP configuration change erroneously withdrew every route advertising Facebook's DNS nameservers to the internet. The moment those routes disappeared, external resolvers could no longer look up \texttt{facebook.com}, \texttt{instagram.com}, or \texttt{whatsapp.com}. What made the outage so painful to diagnose was a second-order problem: Facebook's internal monitoring infrastructure was also hosted inside Facebook's own network, and when the routes died, the monitoring systems died with them. Engineers were flying blind, unable to query dashboards, unable to receive alerts, and---in many cases---unable to even SSH into their own servers because the access tools also depended on internal DNS.
+
+The fix itself took minutes once the team understood what happened. Finding the cause took hours, because the team had no independent vantage point from which to observe the system. The lesson is not that Facebook had bad engineers. The lesson is that observability must be architected as an external, independent concern---not something that lives inside the very network it is supposed to monitor. This is the foundational principle behind modern cloud observability design: your ability to see what is happening must survive the failure of what you are watching.
+
+This lesson has played out repeatedly across the industry. On June 20, 2024, a Cloudflare incident caused a 3x increase in latency at the 99th percentile and affected 1.4--2.1\% of HTTP requests for 114 minutes. Two independent failure modes collided: automated network monitoring detected a performance degradation, and a new DDoS mitigation mechanism triggered a latent bug in the rate limiting system. Cloudflare's postmortem---published within 24 hours---was only possible because they had independent telemetry pipelines that captured the sequence of events even as the incident unfolded. Without that telemetry, the timeline of causation would have been pure speculation.
+
+Without observability, you cannot distinguish a slow bug from a catastrophic cascade. You cannot prove that a deploy improved latency. You cannot build an on-call rotation that is not completely demoralizing. Observability is the infrastructure that makes production systems legible.
+
+% -----------------------------------------------------------------------
+%  2.  THE THREE PILLARS
+% -----------------------------------------------------------------------
+\section{The Three Pillars of Observability}
+
+The term ``observability'' comes from control theory: a system is observable if its internal state can be inferred from its external outputs. In software, this translates to three complementary streams of telemetry data---metrics, logs, and traces---each of which reveals a different dimension of system behaviour. The reason you need all three is that each answers a different question: \emph{metrics} tell you that something is wrong, \emph{logs} tell you what happened, and \emph{traces} tell you where in the distributed system it happened.
+
+Consider a concrete failure: your checkout endpoint's error rate spikes from 0.1\% to 8\% at 2:47am. Your metrics dashboard fires an alert within seconds. But the metric alone tells you nothing except that the number is bad. You then look at the logs for the checkout service---structured JSON records that show a flood of \texttt{DATABASE\_TIMEOUT} exceptions, each with a request ID. Those logs tell you \emph{what} is failing. But the checkout service calls four downstream services: inventory, pricing, tax calculation, and payment. Which one is timing out? That is where traces become indispensable. A distributed trace follows a single request across all four service calls, recording the time each segment took. You pull up the trace for a failed request and immediately see that the payment service's call to its internal database is taking 4.2 seconds---where it normally takes 8ms. The metric detected the problem. The log surfaced the error type. The trace identified the exact component causing the cascade.
+
+\begin{industrybox}{OpenTelemetry --- The Unified Standard (2024)}
+  OpenTelemetry (OTel) has become the de-facto standard for emitting metrics, logs, and traces from application code. According to the CNCF Annual Survey 2024, approximately 49\% of cloud-native organizations have adopted OpenTelemetry, making it one of the most widely deployed non-graduated CNCF projects. Grafana's 2024 Observability Survey found that 85\% of respondents are actively investing in OpenTelemetry adoption. The project is the second-highest-velocity project in the entire CNCF ecosystem by contributor activity. The core value proposition is vendor neutrality: you instrument your application once, and you can route telemetry to any backend---Jaeger, Zipkin, Prometheus, Datadog, Honeycomb---by changing configuration rather than rewriting instrumentation.
+\end{industrybox}
+
+\subsection{Metrics}
+
+A metric is a named, numerical measurement sampled over time. Unlike a log---which is a discrete event---a metric is an aggregation. At any instant, a counter represents a cumulative total; a gauge represents a point-in-time value; a histogram represents a distribution of values across configurable buckets. Prometheus, the dominant open-source metrics system, defines four metric types: \textbf{Counter} (monotonically increasing, e.g.\ total HTTP requests served), \textbf{Gauge} (can go up or down, e.g.\ current memory usage), \textbf{Histogram} (samples values into configurable buckets, used for latency distributions), and \textbf{Summary} (client-side quantile calculations, now largely superseded by histograms for most use cases).
+
+The strength of metrics is their low overhead and high queryability. Prometheus's query language (PromQL) lets you compute rate-of-change, percentiles, and aggregations across label dimensions in milliseconds. The weakness is cardinality: each unique combination of label values creates a new time series. If you add a label for \texttt{user\_id}---even for a modestly popular service---you can create millions of time series and overwhelm your metrics storage.
+
+\subsection{Logs}
+
+A log is an immutable, timestamped record of a discrete event. In a well-designed system, every request that passes through a service emits a structured log record (JSON, not free text) containing fields like \texttt{request\_id}, \texttt{trace\_id}, \texttt{user\_id}, \texttt{status\_code}, \texttt{duration\_ms}, \texttt{error\_code}, and \texttt{service\_version}. Structured logs are machine-parseable, which means you can write queries against them (``show me all log lines where error\_code = DATABASE\_TIMEOUT and service = checkout and duration\_ms > 1000'') rather than grepping for patterns in unstructured text.
+
+Log levels exist to control the signal-to-noise ratio in production. DEBUG is for local development. INFO records normal control flow. WARN records recoverable anomalies. ERROR records failures that require attention. FATAL records failures that cause the process to exit. In production, you should log at WARN and above by default---logging at DEBUG or INFO in high-throughput production systems generates terabytes of data daily and makes it nearly impossible to find the signal.
+
+\subsection{Traces}
+
+A distributed trace records the path of a single request as it crosses service boundaries. Each unit of work within the trace---a single RPC call, a database query, a cache lookup---is represented as a \textbf{span}. Spans have a name, a start time, a duration, a status code, and a set of key-value attributes. Spans are linked in parent-child relationships that form a tree, with the root span representing the outermost request (e.g., an HTTP call entering your API gateway) and leaf spans representing the innermost operations (e.g., a single SQL query).
+
+The glue that makes distributed tracing work is \textbf{context propagation}: every time a service makes an outbound call, it injects a \texttt{trace-id} and \texttt{span-id} into the request headers (using the W3C TraceContext standard, as defined in the OpenTelemetry specification). The receiving service reads those headers, creates a child span, and continues the trace. At the end, all spans with the same \texttt{trace-id} can be assembled into the full tree, even though they were emitted by different services on different machines.
+
+\begin{thinkbox}
+  If you already have logs with a \texttt{request\_id} field, why do you need distributed traces? The answer is correlation. A \texttt{request\_id} can tell you which logs belong to the same top-level request, but it cannot tell you the \emph{timing relationship} between service calls. Did the payment service fail before or after the tax service returned? How long was the network transit between the API gateway and the checkout service? A trace captures not just \emph{what happened} but \emph{when}, \emph{how long}, and \emph{in what order}---across every service boundary---in a single queryable tree structure. Logs tell you \emph{what}; traces tell you \emph{where and when}.
+\end{thinkbox}
+
+% -----------------------------------------------------------------------
+%  3.  METRICS: PROMETHEUS AND THE PULL MODEL
+% -----------------------------------------------------------------------
+\section{Metrics in Depth: Prometheus and the Pull Model}
+
+\subsection{Architecture}
+
+Prometheus uses a pull-based architecture: rather than having applications push metrics to a central collector, Prometheus \emph{scrapes} a metrics endpoint (typically \texttt{/metrics}) exposed by each target. This inversion of control is deliberate. When a push-based system is overloaded or misconfigured, the target keeps pushing metrics, potentially making the monitoring infrastructure itself a source of load. In a pull model, Prometheus controls the scrape rate, and if a target is unreachable, Prometheus immediately knows that (it simply fails to scrape). The pull model also makes service discovery simpler: Prometheus can query Kubernetes, Consul, or AWS EC2 APIs to find targets dynamically.
+
+The default scrape interval in Prometheus is 15 seconds for most production deployments. High-resolution monitoring (e.g.\ for latency-sensitive payment systems) uses intervals as low as 5 seconds. Intervals below 5 seconds are generally counterproductive because they increase storage and query load faster than they improve alert latency. The staleness threshold in Prometheus is 5 minutes---if a target has not been scraped in 5 minutes, its metrics are considered stale and excluded from queries.
+
+\subsection{The RED and USE Methods}
+
+Two mental frameworks guide which metrics to instrument. The \textbf{RED method} (coined by Tom Wilkie at Grafana Labs) applies to services that handle requests: instrument \textbf{R}ate (requests per second), \textbf{E}rrors (error rate as a fraction of total requests), and \textbf{D}uration (latency distribution, as a histogram). These three metrics are sufficient to detect nearly every user-impacting service degradation. The \textbf{USE method} (coined by Brendan Gregg) applies to infrastructure resources: instrument \textbf{U}tilization (percentage of time the resource is busy), \textbf{S}aturation (amount of work queued, waiting to be processed), and \textbf{E}rrors (error events on the resource). USE is the right framework for CPUs, network interfaces, disks, and database connection pools.
+
+\begin{trapbox}{Measuring Average Latency}
+  Average latency is a trap. If 99\% of requests complete in 10ms and 1\% complete in 10 seconds, the average might show 110ms---slow, but not alarming. The P99 would show 10 seconds---a catastrophic user experience. Always instrument latency as a Prometheus histogram and query P95, P99, and P99.9 percentiles. The default Prometheus histogram bucket boundaries are 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, and 10s. These cover most API latency distributions well, but for systems with sub-millisecond latency requirements (e.g.\ in-memory caches), you should define finer-grained buckets. Never alert on average latency in production.
+\end{trapbox}
+
+\subsection{Grafana as the Visualization Layer}
+
+Prometheus stores time-series data and evaluates alerting rules, but it provides only a minimal UI. Grafana is the standard visualization layer: it connects to Prometheus (and many other backends) as a data source and renders dashboards, heatmaps, and alert panels. A well-designed Grafana dashboard for a single service typically has four rows: a summary row showing request rate, error rate, and P99 latency (the RED metrics); an infrastructure row showing CPU, memory, and network I/O; a downstream dependency row showing per-dependency error rate and latency; and an active alert row. This layout ensures that an engineer arriving at the dashboard during an incident can identify the problem tier within 30 seconds.
+
+% -----------------------------------------------------------------------
+%  4.  DISTRIBUTED TRACING
+% -----------------------------------------------------------------------
+\section{Distributed Tracing in Depth}
+
+\subsection{Why Logs Fail in Distributed Systems}
+
+In a monolith, a log line for a single request can contain all the context an engineer needs. In a distributed system with a dozen microservices, a single user action might fan out to 50--100 service calls. The log for each call lives in that service's log stream, on a different host, stored in a different index. Correlating those logs requires a shared identifier (\texttt{trace\_id}) and a system that can efficiently query across all log streams simultaneously. This is expensive. Distributed tracing solves this problem differently: instead of post-hoc correlation of unstructured logs, a trace is a first-class structured object that is assembled from spans as the request progresses. You query a trace ID and get back the complete call tree with timing for all 50 service calls.
+
+\begin{industrybox}{Uber --- Jaeger at Scale (2017--2024)}
+  Uber built Jaeger in 2017 to solve distributed tracing across more than 2,000 microservices. Before Jaeger, debugging a single slow ride-hailing request required engineers to manually correlate logs across dozens of services---a process that could take hours. Jaeger, inspired by Google's Dapper paper (2010), introduced adaptive sampling and a scalable storage backend (Cassandra and Elasticsearch). Uber open-sourced Jaeger in 2017; it became a CNCF graduated project in 2019 and remains one of the most widely deployed distributed tracing backends. Since 2023, Jaeger's maintainers have officially recommended using OpenTelemetry SDKs for instrumentation rather than Jaeger's native client libraries, signalling the industry's full convergence on OTel as the instrumentation standard.
+\end{industrybox}
+
+\subsection{Sampling Strategies}
+
+At high throughput---say, 100,000 requests per second---recording every span for every request is prohibitively expensive. A single request to a complex microservices system might generate 200 spans; at 100k RPS, that is 20 million spans per second, requiring petabytes of storage per day. Sampling reduces this volume to a manageable level, but the choice of sampling strategy has important implications.
+
+\textbf{Head-based sampling} (the Jaeger default) makes the sampling decision at the root span, before any downstream spans are created. If the root span is sampled at a 1\% rate, all child spans for that request are also recorded. The advantage is simplicity and low overhead. The disadvantage is that rare, high-value events---a 10-second timeout that occurs once in 10,000 requests---may be sampled away entirely, because the sampling decision was made before the problem manifested.
+
+\textbf{Tail-based sampling} (the approach pioneered by Honeycomb and now supported in the OpenTelemetry Collector) buffers all spans for a request until the root span completes, then makes a sampling decision based on the full trace. This allows you to \emph{always sample traces with errors} and \emph{always sample traces above a latency threshold}, while sampling normal traces at 1\%. The trade-off is buffer memory and the complexity of routing all spans for a given trace to the same collector node.
+
+\begin{industrybox}{Netflix --- Distributed Tracing at Extreme Scale (2024)}
+  Netflix uses distributed tracing to debug latency across a streaming pipeline that handles hundreds of millions of viewing sessions. According to Netflix TechBlog (2024), their observability platform processes approximately 700 billion distributed trace spans per day and 17 billion metrics data points. A single movie encoding job can generate over one million trace spans. Netflix's tracing infrastructure---which draws on Apache Kafka for trace data transit and Apache Flink for stream processing---transforms raw spans into business-level intelligence: which encoding step caused a particular title's processing to exceed SLA, which device firmware version correlates with playback failures. The scale at which Netflix operates makes tail-based sampling not just a preference but a necessity.
+\end{industrybox}
+
+% -----------------------------------------------------------------------
+%  5.  STRUCTURED LOGGING
+% -----------------------------------------------------------------------
+\section{Structured Logging at Scale}
+
+\subsection{The Case Against Unstructured Logs}
+
+For most of computing history, logs were lines of human-readable text: ``2024-06-20 03:47:22 ERROR checkout-service: database connection timed out after 5000ms.'' This format is readable by a developer scanning a terminal but is a nightmare at scale. Parsing free-text logs requires brittle regular expressions that break whenever a developer changes the message wording. Aggregating across millions of log lines is slow. Querying for specific field values---``show me all requests from user ID 12345 that had a timeout''---is either impossible or requires full-text search over petabytes of data.
+
+Structured logging solves this by emitting each log line as a JSON object with explicitly named fields. A well-formed structured log entry for the same event looks like:
+
+\begin{quote}
+\small\ttfamily\sloppy
+\{"timestamp":"2024-06-20T03:47:22Z","level":"ERROR","service":"checkout",\\
+"trace\_id":"7a3c...","request\_id":"b9d1...","user\_id":"12345",\\
+"error":"database\_timeout","duration\_ms":5000,"db\_host":"mysql-primary-02"\}
+\end{quote}
+
+Every field is addressable. Log aggregation systems like Elasticsearch, Splunk, or Grafana Loki can ingest this JSON, index specific fields, and answer the query ``show me all ERROR logs from the checkout service in the last 10 minutes where duration\_ms > 3000'' in seconds---regardless of whether you have 10,000 or 10 billion log lines.
+
+\subsection{Correlation IDs and Log Retention}
+
+The single most important discipline in structured logging is the consistent propagation of correlation IDs. Every log line emitted anywhere in the system for a single user action should carry the same \texttt{trace\_id} and \texttt{request\_id}. When an alert fires at 3am, the on-call engineer pulls the trace ID from the alert, pastes it into the log aggregation query, and sees every log line---across every service---from that single request. Without consistent ID propagation, log correlation collapses into guesswork.
+
+Log retention has significant cost implications. Hot storage (Elasticsearch primary indices, fast disk) typically retains 30 days of logs for high-cardinality services---sufficient to cover most incident investigations and postmortem windows. Cold storage (object storage, AWS S3) retains 1 year for compliance and pattern analysis. The ELK stack (Elasticsearch, Logstash, Kibana) remains the most widely deployed log aggregation stack for organisations that operate their own infrastructure; Grafana Loki (which indexes log metadata but not log content, reducing storage costs) is increasingly popular for teams already using Grafana for metrics.
+
+% -----------------------------------------------------------------------
+%  6.  SLOs, SLIs, AND SLAs
+% -----------------------------------------------------------------------
+\section{SLOs, SLIs, and SLAs}
+
+\subsection{The Definitions That Matter in Interviews}
+
+The distinction between SLI, SLO, and SLA is one of the most reliable interview discriminators. Many candidates have heard the acronyms and know they relate to reliability, but few can give precise definitions with examples---and even fewer understand the error budget model that makes SLOs operationally useful.
+
+\begin{termbox}{SLI --- Service Level Indicator}
+  An SLI is the specific metric you choose to measure. It is always expressed as a ratio: the number of ``good'' events divided by the total number of events. Examples: ``the fraction of HTTP requests that returned a 2xx status code and completed within 500ms'' or ``the fraction of Kafka messages that were delivered to the consumer within 1 minute of being produced.'' The key discipline is choosing an SLI that directly captures the user experience---not a proxy metric like CPU utilisation.
+\end{termbox}
+
+\begin{termbox}{SLO --- Service Level Objective}
+  An SLO is a target value for your SLI over a compliance window (typically 30 days or a rolling 28-day window). Example: ``99.9\% of HTTP requests to the checkout endpoint will return a 2xx response and complete within 500ms, measured over a rolling 30-day window.'' The SLO is an internal engineering commitment---it is not a contract with users, and there is no financial penalty for breaching it. Its purpose is to give teams a quantified target to engineer toward and a shared language for tradeoff decisions.
+\end{termbox}
+
+\begin{termbox}{SLA --- Service Level Agreement}
+  An SLA is a contractual commitment between a service provider and its customers, with defined consequences (usually financial credits) if the commitment is not met. SLAs are almost always looser than SLOs---deliberately. If your SLO is 99.9\%, your SLA might commit to only 99.5\%. The gap between the SLA and SLO is a buffer: the organisation must breach its own internal SLO badly before the SLA triggers customer-facing penalties. AWS, for example, publishes SLAs at 99.99\% for most managed services; their internal SLOs are significantly higher.
+\end{termbox}
+
+\subsection{Error Budgets: The Operational Power of SLOs}
+
+The real power of the SLO model is not the target itself---it is the error budget derived from it. A 99.9\% monthly availability SLO means you are allowed 0.1\% of requests to fail. Over 30 days, that is 43.8 minutes of total allowable downtime (or equivalently, 8.7 hours per year). The error budget is spent whenever the SLI drops below the SLO target---whether due to an outage, a bad deploy, or a dependency failure.
+
+Google SRE uses the error budget as a gate on deployments. If a team has consumed 80\% or more of its monthly error budget before the end of the month, all non-emergency code changes are frozen until the budget resets or the service recovers. This creates a direct, quantitative link between reliability work and feature velocity: teams that invest in reliability retain the budget to ship features; teams that ship carelessly spend their budget and lose the ability to ship anything. The error budget model removes the subjective argument of ``is this reliable enough?'' and replaces it with ``how much budget do we have left?''
+
+\begin{industrybox}{Google SRE --- Error Budget in Practice (SRE Workbook, 2024)}
+  Google's SRE Workbook defines the canonical error budget policy: if the error budget for the preceding four-week window is exhausted, all changes and releases are halted except for P01 issues and security fixes, until the service returns to within its SLO. For a service receiving 3 million requests over a four-week period with a 99.9\% success ratio SLO, the budget is exactly 3,000 allowed failures. When that number is exceeded, the velocity dial is turned to zero automatically---not by management judgment, but by policy. This removes the political pressure that engineers often face to ship features despite marginal reliability.
+\end{industrybox}
+
+% -----------------------------------------------------------------------
+%  7.  ALERTING AND ON-CALL
+% -----------------------------------------------------------------------
+\section{Alerting and On-Call Discipline}
+
+\subsection{Alert Fatigue: The Enemy of Good Monitoring}
+
+Alert fatigue is the single most common observability failure mode in production systems. It occurs when a system generates so many alerts---most of them non-actionable, transient, or redundant---that on-call engineers begin to ignore them. Within weeks of a system going live with naive alerting (``alert whenever any metric crosses any threshold''), the on-call team has a Slack channel full of messages that nobody reads and a PagerDuty history that is 90\% false positives. The first time a real P1 incident fires in that environment, it is indistinguishable from noise.
+
+The antidote to alert fatigue is a clear alerting philosophy: \textbf{a page should only fire if a human being must take action right now, and the consequence of not acting is user impact}. Anything that can wait until business hours should go to a ticket. Anything that can be resolved automatically should not fire at all. This is often called the alert pyramid: the base is logs (everything is recorded), the middle is tickets (degraded-but-functional states that need attention within hours), and the apex is pages (user-impacting events requiring immediate response).
+
+\subsection{Runbook-Driven Alerting}
+
+Every alert that fires should link to a runbook: a document that explains what the alert means, what its typical causes are, what the on-call engineer should do to investigate, and how to resolve each common cause. An alert without a runbook is an instruction to ``figure it out under pressure at 3am''---a recipe for poor decisions and slow resolution. Well-maintained runbooks are living documents: after every incident, the postmortem should include a runbook update if the resolution involved steps that were not already documented.
+
+Standard escalation tiers in most production organisations are: P1 (page immediately, 5-minute response SLA, triggered by confirmed user-impacting outage), P2 (page within 30 minutes, triggered by degraded service still partially functional), and P3 (next business day, triggered by a trend that will become a problem within days if not addressed). PagerDuty and OpsGenie both implement escalation chains: if the primary on-call does not acknowledge a P1 within 5 minutes, it escalates to a secondary, then to a manager.
+
+\begin{trapbox}{Alerting on Causes Instead of Symptoms}
+  A common mistake is to alert on causes (``CPU utilisation above 80\%'') rather than symptoms (``P99 latency above 2 seconds''). High CPU may or may not affect users, depending on how much headroom the system has. A saturated CPU that is still serving requests within SLA is not a page---it is a capacity planning ticket. Alerting on the symptom (latency, error rate, availability) directly measures user experience. Alerting on causes generates noise and trains engineers to ignore alerts. The rule of thumb: alert on your SLI breaching your SLO, not on the infrastructure metric that might explain why.
+\end{trapbox}
+
+% -----------------------------------------------------------------------
+%  8.  DECISION FRAMEWORK
+% -----------------------------------------------------------------------
+\section{Choosing the Right Tool}
+
+\subsection{Metrics vs Logs vs Traces}
+
+The three pillars are not interchangeable, and each has a distinct cost and capability profile. The table below captures the key decision dimensions.
+
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Dimension}       & \textbf{Metrics}              & \textbf{Logs}                   & \textbf{Traces}                \\ \midrule
+Storage cost             & Very low (aggregated)         & High (raw events)               & Medium (sampled trees)         \\
+Query latency            & Milliseconds (time-series)    & Seconds to minutes              & Seconds (by trace ID)          \\
+Primary use case         & Dashboards, alerting          & Debug specific events           & Latency attribution            \\
+Cardinality limits       & Strict (label explosion)      & Unlimited (full text)           & Moderate (trace ID indexed)    \\
+Tooling                  & Prometheus + Grafana          & ELK, Loki, Splunk               & Jaeger, Tempo, Honeycomb       \\
+Sampling                 & Not sampled (aggregated)      & Can be sampled by level         & Head or tail sampling          \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Platform Selection: When to Use What}
+
+\textbf{Prometheus + Grafana} is the right choice for teams that want full control, run on-premises or in self-managed Kubernetes, and have the operational capacity to maintain the stack. It is free, open-source, and extremely well-supported. The operational burden (scaling Prometheus, managing Alertmanager, maintaining Grafana dashboards) is real but manageable for teams with dedicated platform engineering.
+
+\textbf{Datadog} is the right choice when time-to-value matters more than cost---typically for teams that need metrics, logs, traces, and APM in a unified commercial SaaS platform with minimal operational overhead. Datadog holds approximately 38\% of the global observability tool market as of 2024 (IDC) and reported \$3.3 billion in revenue in 2025, making it the clear market leader by both share and revenue.
+
+\textbf{OpenTelemetry + Jaeger/Grafana Tempo} is the right choice for teams that want vendor neutrality---instrument once, route anywhere. OTel-instrumented applications can emit to Prometheus (metrics), Loki (logs), and Jaeger or Tempo (traces) without changing application code. This is the greenfield architecture recommendation for organisations that anticipate changing their backend over the next several years.
+
+% -----------------------------------------------------------------------
+%  9.  CRITICAL NUMBERS
+% -----------------------------------------------------------------------
+\section{Critical Numbers Reference}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Number} & \textbf{Value} & \textbf{Source / Notes} \\ \midrule
+Prometheus default scrape interval       & 15 seconds                           & Prometheus defaults (2024)                \\
+Prometheus high-resolution interval      & 5 seconds                            & Production best practice for critical SVCs \\
+Prometheus staleness threshold           & 5 minutes                            & Prometheus staleness spec                 \\
+Trace sampling rate at scale             & 1--10\% (head); dynamic (tail)       & Jaeger / OTel Collector docs (2024)       \\
+Error budget: 99.9\% SLO, 30-day        & 43.8 minutes / month                 & Google SRE Workbook (2024)                \\
+Error budget: 99.9\% SLO, annual        & 8.76 hours / year                    & Google SRE Workbook (2024)                \\
+Error budget: 99.99\% SLO, 30-day       & 4.38 minutes / month                 & AWS SLA baseline                          \\
+Log hot retention (typical)             & 30 days                              & ELK / Splunk industry standard            \\
+Log cold retention (typical)            & 1 year                               & Compliance and audit baseline             \\
+P1 alert response SLA                   & 5 minutes                            & PagerDuty / OpsGenie standard tier        \\
+P2 alert response SLA                   & 30 minutes                           & PagerDuty / OpsGenie standard tier        \\
+P3 alert response SLA                   & Next business day                    & PagerDuty / OpsGenie standard tier        \\
+OTel adoption (CNCF survey, 2024)       & 49\% of cloud-native orgs            & CNCF Annual Survey 2024                   \\
+Netflix daily trace spans               & 700 billion                          & Netflix TechBlog 2024                     \\
+Netflix daily metrics                   & 17 billion data points               & Netflix TechBlog 2024                     \\
+Datadog market share (2024)             & $\sim$38\% of observability market   & IDC, reported 2024                        \\
+Prometheus histogram buckets (default)  & 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s & Prometheus default config \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% -----------------------------------------------------------------------
+%  10.  SYSTEM DESIGN APPLICATION
+% -----------------------------------------------------------------------
+\section{System Design Application}
+
+\subsection{``Design a Notification System --- How Do You Know It's Working?''}
+
+After sketching the notification pipeline (API -> Kafka -> worker -> APNs/FCM), a senior interviewer will inevitably ask this question. The answer should address all three pillars. For metrics: you would instrument a \texttt{notifications\_delivered\_total} counter (incremented when APNs/FCM acknowledges delivery) and a \texttt{notifications\_failed\_total} counter, compute the delivery success rate SLI, and set a 99.5\% SLO. You would instrument a \texttt{notification\_e2e\_latency\_seconds} histogram on the full path from API ingestion to APNs acknowledgement, and alert when P99 exceeds 5 seconds. Critically, you would also expose the Kafka consumer group lag as a gauge---consumer lag is a leading indicator of worker saturation, and it will climb before your end-to-end latency SLO is breached.
+
+For tracing: every notification request gets a \texttt{trace\_id} injected at the API layer, propagated through the Kafka message header, and continued by the worker into its APNs/FCM call. When a delivery fails, you pull the trace ID from the failure log and see exactly where in the pipeline the failure occurred: did APNs reject the device token? Did the Kafka consumer crash mid-processing? For logs: the dead letter queue depth is another leading indicator---if messages are being moved to the DLQ faster than they are being retried, the delivery rate SLO will breach within minutes. Alerting on DLQ depth gives you several minutes of warning before the SLI degrades.
+
+\subsection{``Design an API Gateway with Rate Limiting --- How Do You Monitor It?''}
+
+An API gateway is a control plane component, which means its health directly affects every downstream service. The RED metrics are essential: requests per second by endpoint (to detect traffic spikes), error rate by endpoint (to detect misconfiguration or upstream failures), and P99 latency by endpoint (to detect degradation). For the rate limiting layer specifically, you need a \texttt{rate\_limit\_rejected\_total} counter labelled by client ID and endpoint. Tracking the rejection rate is important for two reasons: a sudden spike means a client is misbehaving (possibly a bot or a misconfigured retry loop), and a gradual rise may indicate that your rate limit thresholds are too tight for legitimate traffic growth.
+
+The tracing story for an API gateway is about attribution: when a request fails at the gateway because an upstream service is slow, the trace should make it unambiguous whether the latency originated in the gateway itself or in the downstream. Without traces, you see high latency on the gateway metric but cannot distinguish internal gateway overhead from upstream service degradation.
+
+\subsection{``Your Payment Service Has a Spike in Errors at 3am --- Walk Me Through Diagnosis''}
+
+This is a scenario question testing your incident response mental model. The answer should follow a systematic observability-driven sequence. Step one: the PagerDuty alert fires because the \texttt{payment\_errors\_total} rate crossed the SLO breach threshold. Step two: you open the Grafana dashboard for the payment service and confirm that the error rate is 12\% (well above the 0.1\% SLO), that P99 latency is elevated at 8 seconds, but that request volume is normal (not a traffic spike). Step three: you look at the dependency breakdown panel---Prometheus metrics labelled by downstream service show that calls to the payment processor API are failing, while calls to the internal database are healthy. Step four: you pull a trace ID from a failed request, open it in Jaeger, and see that the payment processor span shows a TCP connection timeout at 5 seconds before the retry. Step five: you grep the structured logs for \texttt{error=PAYMENT\_PROCESSOR\_TIMEOUT} and \texttt{time > 3:00:00} and see that the failures started precisely at 3:02am---consistent with a payment processor scheduled maintenance window that was not communicated in advance. The diagnosis took 4 minutes because the observability infrastructure was in place.
+
+% -----------------------------------------------------------------------
+%  11.  CURIOSITY CORNER
+% -----------------------------------------------------------------------
+\section{Curiosity Corner}
+
+\begin{curiobox}{What is the difference between monitoring and observability?}
+  This distinction is subtle but important. \textbf{Monitoring} is the practice of checking whether predefined conditions are met---it assumes you already know what can go wrong, and you set thresholds accordingly. A monitoring system tells you ``CPU is above 90\%'' or ``request rate dropped below 100 RPS.'' It is reactive and finite: you can only monitor what you anticipated.
+
+  \textbf{Observability} is a property of a system that describes how well you can understand its internal state from its external outputs---without necessarily knowing in advance what questions you will need to ask. An observable system lets you ask novel, ad-hoc questions: ``show me the P99 latency for checkout requests from mobile clients in Germany that had a cart value above \$100, for the last 6 hours.'' Monitoring is a subset of what observability enables. The distinction was popularised by Charity Majors (Honeycomb) and is now standard vocabulary in SRE discussions. In an interview, saying ``monitoring tells you when something is broken; observability tells you why'' is a useful framing---but be prepared to go deeper if asked.
+\end{curiobox}
+
+\begin{curiobox}{Why does cardinality matter in metrics, and when does it become a problem?}
+  Every unique combination of label values in Prometheus creates a separate time series stored in memory and on disk. This is called the \textbf{cardinality} of a metric. If you have a metric \texttt{http\_requests\_total} with labels \texttt{method} (5 values), \texttt{status} (10 values), and \texttt{endpoint} (50 values), you have a cardinality of 2,500 time series---manageable. But if you add a \texttt{user\_id} label, and you have 10 million users, you have 250 billion potential time series---enough to OOM Prometheus within seconds.
+
+  The rule is: never use high-cardinality values (user IDs, session IDs, request IDs, IP addresses) as metric labels. These belong in \emph{traces} and \emph{logs}, which are designed for high-cardinality, per-request data. Metrics are for aggregate, low-cardinality measurements. When a Prometheus instance crashes in production with an ``out of memory'' error and the postmortem reveals someone added a \texttt{user\_id} label, this is called a ``cardinality explosion''---it is one of the most common operational mistakes in Prometheus deployments.
+\end{curiobox}
+
+\begin{curiobox}{What is tail-based sampling in distributed tracing, and why does it exist?}
+  Head-based sampling makes the decision to keep or discard a trace at the very start, before any of the child spans are created. This is simple and has near-zero overhead, but it means you might discard the one slow, error-ridden trace out of 1,000 that would have revealed a critical bug. The cost of discarding it is that you never know it happened.
+
+  Tail-based sampling buffers all spans for a request until the root span completes, then applies routing rules to decide whether to keep the full trace. Common rules: always keep traces with any span in ERROR status, always keep traces where total duration exceeds 2 seconds, sample all other traces at 1\%. This gives you 100\% coverage of anomalous behaviour---exactly the traces you need for debugging---while still discarding 99\% of ``boring'' successful traces to manage storage costs.
+
+  The engineering challenge of tail-based sampling is that all spans for a given trace must arrive at the same collector node to be evaluated together, which requires consistent hashing of trace IDs to collector instances. The OpenTelemetry Collector's \texttt{tail\_sampling} processor implements this, and Honeycomb built an entire product (Refinery) around the concept. At Netflix scale (700 billion spans per day), tail-based sampling is not optional---it is the only approach that makes tracing economically feasible.
+\end{curiobox}
+
+\begin{curiobox}{How do you set a good SLO? What is the process for choosing the right target?}
+  Choosing an SLO target is not a technical exercise; it is a product exercise. The starting point is the question: ``what reliability does the user actually need?'' For a payment processing endpoint, 99.9\% might be entirely insufficient---a merchant whose checkout fails 43 minutes per month loses real revenue. For a developer documentation site, 99\% might be perfectly acceptable. The SLO must be calibrated to user expectations and business impact.
+
+  Google's SRE Workbook recommends starting with a lower target than you think you need (e.g., 99.5\%) for the first three months, measuring your actual SLI, and then adjusting based on observed reliability. Setting an aspirational SLO that you immediately breach creates a meaningless error budget. Setting a target so loose that you never touch the budget means you are over-engineering reliability you do not need.
+
+  A practical heuristic: set your SLO 10\% stricter than your measured historical SLI. If your checkout endpoint has achieved 99.95\% success rate over the last 6 months, set the SLO at 99.9\% and invest the remaining budget headroom in feature velocity. Review and tighten the SLO quarterly as reliability improves.
+\end{curiobox}
+
+\begin{curiobox}{What is OpenTelemetry, and why did it emerge to replace Jaeger and Zipkin instrumentation?}
+  Before OpenTelemetry, each tracing vendor---Jaeger, Zipkin, Datadog, LightStep, New Relic---had its own proprietary instrumentation library. To instrument your Go service for Jaeger, you would import the Jaeger Go client; to switch to Datadog, you would rip out the Jaeger client and import the Datadog agent library. Changing backends meant rewriting instrumentation across your entire service fleet---a massive switching cost that effectively locked organisations into a single vendor.
+
+  OpenTelemetry emerged in 2019 from the merger of two earlier standards---OpenTracing (Jaeger's instrumentation API) and OpenCensus (Google's instrumentation library)---and graduated to CNCF incubation. Its design separates the \emph{API} (how you instrument code) from the \emph{SDK} (how you process telemetry) from the \emph{exporter} (where you send it). You instrument your application against the OTel API once. Then you configure the SDK and exporters to route traces to Jaeger, Tempo, or Honeycomb---and metrics to Prometheus---without touching application code. As of 2024, OTel is the recommended instrumentation path for all major tracing backends, including Jaeger itself, which now recommends OTel SDKs over its own native client libraries.
+\end{curiobox}
+
+\begin{curiobox}{How does Netflix's Chaos Monkey relate to observability?}
+  Chaos Monkey is a tool Netflix built in 2011 (and open-sourced as part of the Simian Army) that randomly terminates EC2 instances in production during business hours. The premise is uncomfortable but sound: if your system's resilience to instance failure is good, Chaos Monkey will terminate instances and nobody will notice. If it is bad, Chaos Monkey will expose the fragility before a real failure does---and it will do so in a controlled, daytime context where engineers are awake to respond.
+
+  The connection to observability is direct: Chaos Monkey is only useful if you can \emph{observe} the impact of the termination. Without metrics on request error rates, without traces showing which service calls are failing, without logs capturing the downstream effects of the killed instance---Chaos Monkey just causes chaos. With a strong observability stack, each Chaos Monkey event becomes a rehearsal that validates your alerting rules (``did we page correctly?''), your runbooks (``did the runbook work?''), and your SLO headroom (``how much error budget did this spend?''). Chaos engineering and observability are symbiotic: observability makes chaos engineering legible, and chaos engineering validates that observability is correctly wired.
+\end{curiobox}
+
+% -----------------------------------------------------------------------
+%  12.  SELF-QUIZ
+% -----------------------------------------------------------------------
+\newpage
+\section{Self-Quiz}
+
+\textit{These questions are framed as interviewer probes. Cover the answers on the next page and respond aloud before checking.}
+
+\begin{quizbox}{1}
+  You have just finished sketching a notification system with an API server, a Kafka queue, worker processes, and APNs/FCM delivery. The interviewer asks: ``How do you know it is working correctly in production?'' Walk me through your observability design.
+\end{quizbox}
+
+\begin{quizbox}{2}
+  What is an SLO, and how does it differ from an SLA? Give me a concrete example for a checkout service, including the error budget calculation.
+\end{quizbox}
+
+\begin{quizbox}{3}
+  A user reports that their checkout experience felt slow at approximately 3pm yesterday. You have metrics, logs, and traces. Walk me through exactly how you would diagnose the problem using each of those tools.
+\end{quizbox}
+
+\begin{quizbox}{4}
+  If you already have structured logs with a request ID on every log line across every service, why do you still need distributed tracing? What does tracing give you that logs cannot?
+\end{quizbox}
+
+\begin{quizbox}{5}
+  Name the three pillars of observability. For each one, tell me: what does it measure, what is its primary use case in an incident, and what is its main limitation?
+\end{quizbox}
+
+% -----------------------------------------------------------------------
+%  13.  MODEL ANSWERS
+% -----------------------------------------------------------------------
+\newpage
+\section*{Model Answers}
+
+\begin{answerbox}{1}
+  A complete observability design for the notification system covers all three pillars. \textbf{Metrics}: instrument a \texttt{notifications\_delivered\_total} counter (incremented on APNs/FCM acknowledgement) and a \texttt{notifications\_failed\_total} counter. Define an SLI as the delivery success rate and an SLO of 99.5\% over a 30-day window. Expose the Kafka consumer group lag as a gauge---lag is a leading indicator that will spike before end-to-end latency degrades. Instrument a \texttt{notification\_e2e\_latency\_seconds} histogram and alert when P99 exceeds 5 seconds. Monitor dead letter queue depth as a second leading indicator. \textbf{Traces}: inject a \texttt{trace\_id} at the API layer, propagate it through the Kafka message header, and continue it through the worker's APNs/FCM call. When a delivery fails, the trace shows exactly which step failed and how long each step took. \textbf{Logs}: emit structured JSON logs from every component, including trace ID, device token hash, notification type, error code, and retry count. Set production log level to WARN to avoid log volume explosion.
+\end{answerbox}
+
+\begin{answerbox}{2}
+  An SLO (Service Level Objective) is an internal engineering target for a specific SLI (Service Level Indicator). An SLA (Service Level Agreement) is a contractual commitment to customers with financial penalties for breach. The SLO is always stricter than the SLA. Example: the checkout service's SLO is ``99.9\% of requests return 2xx and complete in under 500ms, measured over a rolling 30-day window.'' The SLA published in the enterprise contract is ``99.5\% availability.'' The error budget for the SLO is 0.1\% of monthly requests: for a service receiving 10 million requests per month, that is 10,000 allowed failures, or 43.8 minutes of total allowable downtime per month. When the budget is exhausted, all non-critical deployments are frozen until the 30-day window rolls forward and the budget resets.
+\end{answerbox}
+
+\begin{answerbox}{3}
+  Start with metrics: pull up the Grafana dashboard for the checkout service and look at the P99 latency chart for yesterday 2:45--3:15pm. Identify whether the latency spike was confined to checkout or also visible in downstream services (pricing, inventory, payment). The dashboard's dependency breakdown panel (Prometheus metrics labelled by downstream service) should show which upstream call was slow. Second, use traces: filter Jaeger for checkout traces with duration above 2 seconds in the 3pm window. Open one slow trace and inspect the span tree---the slowest child span identifies the responsible component. Third, use logs: query the log aggregation system for ERROR and WARN log lines from the identified slow service between 2:55--3:05pm. Look for patterns in error codes, database host names, or upstream response codes. The combination of metrics (which endpoints, what time), traces (which component, which span), and logs (what error, what context) usually identifies the root cause within 10 minutes.
+\end{answerbox}
+
+\begin{answerbox}{4}
+  Logs tell you \emph{what happened}; traces tell you \emph{where and when in the distributed call graph}. Even with a request ID on every log line, logs alone cannot answer the question ``of the 8 service calls made by this checkout request, which one was slow, and was it slow because of a network problem, a database query, or the service's own compute?'' To answer that from logs, you would need to manually identify every log line with the matching request ID across 8 different log streams, parse their timestamps, and compute the intervals between calls---a process that takes hours and is error-prone. A trace answers that question in milliseconds: open the trace, read the span tree, see that the payment service's database span took 4 seconds. Additionally, traces capture timing information that logs cannot express cleanly: the time spent in network transit between services, the time waiting in a queue, and the concurrency of parallel downstream calls.
+\end{answerbox}
+
+\begin{answerbox}{5}
+  \textbf{Metrics}: measure aggregated numerical values over time (request rate, error rate, latency percentiles). Primary incident use: dashboard monitoring and alerting---they detect that something is wrong within seconds. Main limitation: high cardinality is catastrophic for storage; you cannot track per-user or per-request detail in a metric. \textbf{Logs}: immutable timestamped records of discrete events. Primary incident use: understanding what happened in a specific request or time window---the error message, the stack trace, the affected user ID. Main limitation: expensive at scale, slow to query across billions of records, and correlation across services requires shared IDs and a good log aggregation system. \textbf{Traces}: records of a request's path through distributed services, structured as parent-child span trees. Primary incident use: latency attribution across microservices---which component caused the slowdown. Main limitation: must be sampled at high throughput, sampling can discard the rare anomalous traces you most need, and tail-based sampling requires complex collector routing infrastructure.
+\end{answerbox}
+
+% -----------------------------------------------------------------------
+%  14.  WHAT IS NEXT
+% -----------------------------------------------------------------------
+\newpage
+\section{What Is Next}
+
+\begin{insightbox}
+  \textbf{Next Lesson: L1-14 --- AI/ML Infrastructure Basics}
+
+  Observability closes the feedback loop on every system you build. But modern systems increasingly embed model inference as a first-class component---recommendation engines, fraud detection, content moderation, search ranking---and inference infrastructure has its own observability challenges that are distinct from traditional software.
+
+  L1-14 covers the infrastructure that makes AI/ML systems production-ready: feature stores (how do you serve the right features at inference time without training-serving skew?), vector databases (why does similarity search require a fundamentally different data structure?), and inference latency budgets (how do you meet a 50ms P99 when your model takes 40ms on a GPU?). These are not specialist topics any more. Senior engineers at Apple and Google are now expected to understand them even if they are not building the models themselves.
+
+  After L1-14, Layer 1 is complete. Gate 1 (which requires L1-01, L1-02, and L1-08) will be partially available---completing L1-08 (Message Queues \& Streaming) alongside this lesson unlocks the first mock interview: the Notification System design, directly applicable to Apple push notification infrastructure. Every lesson from L1-01 to L1-13 you have covered will be active material in that session.
+\end{insightbox}
+
+\end{document}
