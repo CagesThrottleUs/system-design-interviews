@@ -1,0 +1,686 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[top=2.8cm, bottom=2.8cm, left=3cm, right=3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=accent,
+            pdftitle={L1-11 API Design -- System Design Foundations},
+            bookmarks=true]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{array}
+\usepackage{longtable}
+
+% ── Colors ────────────────────────────────────────────────────────────────────
+\definecolor{primary}{HTML}{1A1A2E}
+\definecolor{accent}{HTML}{C0392B}
+\definecolor{highlight}{HTML}{1A5276}
+\definecolor{linkblue}{HTML}{154360}
+\definecolor{lightbg}{HTML}{F4F6F7}
+\definecolor{quizbg}{HTML}{EBF5FB}
+\definecolor{termbg}{HTML}{EAF2FF}
+\definecolor{curiobg}{HTML}{F5EEF8}
+\definecolor{greenbg}{HTML}{EAFAF1}
+\definecolor{notebg}{HTML}{FDF2E9}
+\definecolor{accentlight}{HTML}{FADBD8}
+
+% ── Section styling ───────────────────────────────────────────────────────────
+\titleformat{\section}
+  {\large\bfseries\color{highlight}}
+  {\thesection.}{0.6em}{}
+  [\vspace{2pt}\color{highlight!60}\rule{\linewidth}{0.6pt}]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{primary}}
+  {\thesubsection}{0.5em}{}
+
+\titleformat{\subsubsection}
+  {\normalsize\itshape\color{primary!80}}
+  {}{0em}{}
+
+\titlespacing{\section}{0pt}{18pt}{8pt}
+\titlespacing{\subsection}{0pt}{12pt}{4pt}
+\titlespacing{\subsubsection}{0pt}{8pt}{2pt}
+
+% ── Header/Footer ─────────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{highlight}\textbf{L1-11 --- API Design}}
+\fancyhead[R]{\small\color{primary!70}System Design Interview Prep}
+\fancyfoot[C]{\small\color{primary!60}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{highlight!40}\leaders\hrule height \headrulewidth\hfill}}
+
+% ── Box environments ──────────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable, hooks}
+
+\newtcolorbox{termbox}[1]{
+  enhanced, breakable,
+  colback=termbg, colframe=highlight, coltitle=white,
+  fonttitle=\bfseries\small, title={#1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before upper={\sloppy},
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{industrybox}[1]{
+  enhanced, breakable,
+  colback=greenbg, colframe=highlight!50!black, coltitle=white,
+  fonttitle=\bfseries\small, title={Industry Data: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before upper={\sloppy},
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight!60!black, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{trapbox}[1]{
+  enhanced,
+  colback=accentlight, colframe=accent, coltitle=white,
+  fonttitle=\bfseries\small, title={Interview Trap: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before upper={\sloppy},
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=accent, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{thinkbox}{
+  enhanced,
+  colback=notebg, colframe=accent!60,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  leftrule=3pt, rightrule=0pt, toprule=0pt, bottomrule=0pt,
+}
+
+\newtcolorbox{curiobox}[1]{
+  enhanced, breakable,
+  colback=curiobg, colframe=primary!60, coltitle=white,
+  fonttitle=\bfseries\small, title={Q: #1},
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before upper={\sloppy},
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=primary!70, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{quizbox}{
+  enhanced, breakable,
+  colback=quizbg, colframe=highlight, coltitle=white,
+  fonttitle=\bfseries, title={Self-Quiz},
+  left=10pt, right=10pt, top=8pt, bottom=8pt,
+  before upper={\sloppy},
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=highlight, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{answerbox}{
+  enhanced, breakable,
+  colback=lightbg, colframe=primary!40, coltitle=white,
+  fonttitle=\bfseries\small, title={Model Answers},
+  left=10pt, right=10pt, top=8pt, bottom=8pt,
+  attach boxed title to top left={yshift=-2.5mm, xshift=6mm},
+  boxed title style={colback=primary!60, sharp corners, left=4pt, right=4pt}
+}
+
+\newtcolorbox{insightbox}{
+  enhanced,
+  colback=primary!5, colframe=primary,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  leftrule=4pt, rightrule=0.4pt, toprule=0.4pt, bottomrule=0.4pt,
+}
+
+\setstretch{1.15}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+\vspace*{2cm}
+\begin{center}
+  {\color{primary}\rule{\linewidth}{3pt}}\\[12pt]
+  {\huge\bfseries\color{highlight} L1-11}\\[6pt]
+  {\Huge\bfseries\color{primary} API Design}\\[10pt]
+  {\large\color{primary!70} REST, gRPC, GraphQL, Rate Limiting, Idempotency, and the Contract That Holds Distributed Systems Together}\\[20pt]
+  {\color{primary}\rule{\linewidth}{1pt}}\\[16pt]
+  {\normalsize\color{primary!70}
+    \textit{Layer 1 --- Foundations} \quad\textbullet\quad
+    \textit{System Design Interview Preparation} \quad\textbullet\quad
+    \textit{2026 Edition}
+  }\\[8pt]
+  {\small\color{primary!60} Industry data sourced from Stripe Engineering Blog, GitHub REST/GraphQL API docs, Netflix Tech Blog, Uber Engineering Blog, Cloudflare Research, and Twitter/X developer documentation (2022--2025)}
+\end{center}
+\vfill
+\begin{insightbox}
+\textbf{Why this lesson exists and why it separates senior engineers from mid-level ones.} Every system design interview eventually comes down to API boundaries. Mid-level engineers tend to sketch boxes and arrows and then stop: ``the client calls the server.'' Senior engineers are asked immediately: ``What does that API look like? What protocol? How do you handle retries? What happens when the client calls the same endpoint twice?'' Those follow-up questions are exactly what this lesson answers.
+
+The gap is not knowing REST versus gRPC versus GraphQL as trivia. The gap is understanding \emph{why} each exists, what problem it was invented to solve, and when to reach for which one. An engineer who says ``I'd use REST'' without explaining what properties of REST make it appropriate for this particular case is signalling they have not thought it through. An engineer who can articulate why idempotency keys are mandatory on a payment API --- and how Stripe implements them --- is signalling they have operated systems under failure conditions.
+
+This document is self-contained. After reading it, you will be able to design an API contract under interview pressure, choose between protocols with justified tradeoffs, and defend your rate-limiting and retry strategy.
+\end{insightbox}
+\vspace{1cm}
+\tableofcontents
+\end{titlepage}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Why This Exists: The Contract Problem Between Services}
+% ─────────────────────────────────────────────────────────────────────────────
+
+In the early days of the internet, most software ran inside a single process. A function called another function and the contract between them was enforced by the compiler: if the types matched, the call would work. There was no network between them, no version mismatch to negotiate, no timeout to handle, and no question of whether the call reached its destination.
+
+Distributed systems shattered all of this. When a service running in one data centre calls a function in another service running somewhere else on the planet, the compiler's type-checking is suddenly worthless. The network is unreliable: a packet might be lost, delayed, or delivered twice. The service on the other end might be running a different version of the code that expects different field names. If the call fails midway through --- say, the network dropped between the server committing a database write and sending back the response --- neither side knows what happened. The caller does not know if the operation ran. Retrying might double-charge the customer.
+
+All of this is the \textbf{API design problem}. An API (Application Programming Interface) is a formal contract between a caller and a provider. It specifies what operations exist, what inputs they accept, what outputs they return, and what guarantees they make. Getting this contract right is not a pedantic exercise in documentation --- it is the engineering work that determines whether your system is resilient, evolvable, and usable at scale.
+
+The field has converged on three major approaches to defining these contracts over HTTP: REST, gRPC, and GraphQL. Each was invented to solve a real problem that the previous approach handled poorly. Understanding the history of that evolution is the fastest way to understand when each one fits.
+
+\begin{insightbox}
+The history of API design is a series of problems and reactions. SOAP was the enterprise standard in the 2000s: XML-heavy, verbose, strongly typed by WSDL, and almost impossible to debug by hand. REST was Roy Fielding's 2000 doctoral dissertation reaction: use HTTP as it was designed, use resources and nouns, let HTTP methods carry the semantics. REST dominated the 2010s. gRPC was Google's 2016 internal reaction to REST's verbosity at scale. GraphQL was Facebook's 2015 reaction to REST's over-fetching and under-fetching problem on mobile. None of these approaches is wrong. Each is a rational answer to the problems of its predecessor.
+\end{insightbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{REST: Representational State Transfer}
+% ─────────────────────────────────────────────────────────────────────────────
+
+REST is not a protocol or a standard. It is an architectural style --- a set of constraints that, when followed, produce APIs with certain useful properties. Roy Fielding identified six constraints in his 2000 dissertation. The two that matter most for system design interviews are \textbf{statelessness} and \textbf{uniform interface}.
+
+\subsection{Statelessness: why servers must not remember you}
+
+In a stateful design, the server holds session state between requests. The client logs in, the server remembers who they are, and every subsequent request implicitly carries that identity. This sounds convenient until you add a second server. Now you have to decide which server holds which session. You add sticky sessions and the load balancer is no longer free to route requests optimally. You add a shared session store and it becomes a single point of failure. You want to scale horizontally but every new server needs access to the session state. The session management has become a distributed systems problem layered on top of your actual business logic.
+
+REST's statelessness constraint eliminates the problem entirely by prohibition: every request must contain all the information the server needs to process it. The client sends authentication credentials (typically a JWT or API key) with every request. The server processes the request, sends the response, and immediately forgets about the client. Any server in your cluster can handle any request from any client. Scaling horizontally is now trivially correct --- you add servers and the load balancer distributes requests freely. Failure recovery is simpler too: if a server dies, the client retries against another server with no loss of context.
+
+\begin{termbox}{Statelessness}
+A REST constraint requiring that each HTTP request contain all information needed to process it. The server holds no client session state between requests. Authentication credentials, user identity, and any context required to understand the request must be included in the request itself, typically via HTTP headers such as \texttt{Authorization: Bearer <token>}.
+\end{termbox}
+
+\subsection{Uniform interface: resources, not actions}
+
+The second constraint that defines REST is its insistence on a \textbf{uniform interface}. In a REST API, you model your domain as \emph{resources} (nouns) and use HTTP \emph{methods} (verbs) to express operations on them. This is profoundly different from the RPC (remote procedure call) style that came before it, which named endpoints after actions: \texttt{/getUser}, \texttt{/updateUserEmail}, \texttt{/deleteAccount}. REST would model this as a single resource \texttt{/users/\{id\}} and use \texttt{GET}, \texttt{PUT}, and \texttt{DELETE} on it.
+
+The reason this uniformity matters is predictability. When every API speaks the same language of resources and HTTP methods, a developer who has used one REST API has a mental model that transfers immediately to any other REST API. The cognitive overhead of learning a new API is dramatically reduced. Tooling (browsers, curl, Postman, API gateways, caches) can also make useful inferences: a \texttt{GET} is safe to cache; a \texttt{DELETE} is not.
+
+\subsection{HTTP method semantics: safety and idempotency}
+
+HTTP methods carry two orthogonal properties that have important implications for how you build clients and servers.
+
+\textbf{Safety} means the request has no observable side effect on the server. \texttt{GET} and \texttt{HEAD} are safe. You can call them as many times as you want; the server state does not change. This property is what allows browsers to prefetch pages, what allows intermediaries to aggressively cache responses, and what allows load balancers to retry \texttt{GET} requests automatically without any special handling.
+
+\textbf{Idempotency} means that calling the same request multiple times produces the same result as calling it once. \texttt{GET}, \texttt{PUT}, \texttt{DELETE}, and \texttt{HEAD} are all idempotent. \texttt{POST} is neither safe nor idempotent: calling \texttt{POST /orders} three times creates three orders. This distinction is not pedantic --- it drives your retry strategy. A timed-out \texttt{GET} can be retried blindly. A timed-out \texttt{POST} requires idempotency keys (covered in depth in Section~\ref{sec:idempotency}).
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Method} & \textbf{Safe?} & \textbf{Idempotent?} & \textbf{Typical use} \\
+\midrule
+GET    & Yes & Yes & Retrieve a resource \\
+HEAD   & Yes & Yes & Retrieve headers only \\
+PUT    & No  & Yes & Replace a resource entirely \\
+PATCH  & No  & No  & Partially update a resource \\
+DELETE & No  & Yes & Remove a resource \\
+POST   & No  & No  & Create a resource or trigger an action \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{thinkbox}
+\textbf{Why is DELETE idempotent?} The first \texttt{DELETE /users/42} removes the user and returns 200. The second call finds the user gone and returns 404. Two different status codes --- is that really idempotent? Yes, because the \emph{server state} is the same after either call: user 42 does not exist. Idempotency is a guarantee about server state, not about what response code the server happens to return. Clients should treat 404 as a success condition when retrying deletes.
+\end{thinkbox}
+
+\subsection{HTTP status codes: the vocabulary of outcomes}
+
+Status codes are not decoration. They carry precise semantic meaning that clients, proxies, and monitoring systems all rely on. Using the wrong code forces clients to parse response bodies to understand what happened, which eliminates the uniform interface entirely.
+
+The codes that matter most in system design are:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Code} & \textbf{Name} & \textbf{When to use} \\
+\midrule
+200 & OK                    & Successful GET, PUT, PATCH \\
+201 & Created               & Successful POST that created a resource \\
+204 & No Content            & Successful DELETE (no body to return) \\
+400 & Bad Request           & Malformed input, validation failure \\
+401 & Unauthorized          & Missing or invalid authentication credentials \\
+403 & Forbidden             & Valid credentials, but insufficient permissions \\
+404 & Not Found             & Resource does not exist \\
+409 & Conflict              & State conflict, e.g., duplicate create \\
+422 & Unprocessable Entity  & Well-formed input that is semantically invalid \\
+429 & Too Many Requests     & Rate limit exceeded \\
+500 & Internal Server Error & Unexpected server-side failure \\
+503 & Service Unavailable   & Server temporarily unable to handle request \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The distinction between 401 and 403 is frequently confused in interviews. 401 means ``I don't know who you are.'' It is an authentication failure. The fix is to log in or send a valid token. 403 means ``I know exactly who you are, and you are not allowed to do this.'' It is an authorization failure. No amount of re-authenticating will help; you need different permissions.
+
+\begin{trapbox}{401 vs. 403 Confusion}
+A common interview error is using 401 and 403 interchangeably. An unauthenticated request (no token) that attempts to access a protected resource should return 401, prompting the client to authenticate. An authenticated request (valid token) by a user who lacks permission for this specific resource or action should return 403. Returning 403 for unauthenticated requests leaks information about whether the resource exists. Returning 401 for authenticated-but-forbidden requests misleads the client into thinking re-authentication will help.
+\end{trapbox}
+
+\subsection{API versioning: managing change without breaking clients}
+
+Every long-lived API must eventually change in ways that are incompatible with existing clients. You rename a field, you remove a deprecated parameter, you change the shape of a response. If you change a live API without a versioning strategy, you break all existing clients simultaneously. API versioning is the mechanism that lets your API evolve while preserving backward compatibility for clients that have not yet migrated.
+
+There are three dominant strategies, each with a different tradeoff:
+
+\textbf{URL versioning} embeds the version in the path: \texttt{/v1/users}, \texttt{/v2/users}. This is the most widely adopted approach because it is completely explicit. The URL itself tells you which version you are on. Browser history, server logs, and caches all work correctly without any special headers. The cost is that the version is now baked into every stored URL and every bookmark. Moving a client from v1 to v2 requires updating every URL in their code. Stripe, Twilio, and GitHub's REST API all use this approach.
+
+\textbf{Header versioning} passes the version in a request header, often following the media type pattern: \texttt{Accept: application/vnd.myapi+json;version=2}. The URL stays clean across versions. This is more formally correct from a REST purist's view, since the URL identifies the resource and the header describes the representation format. The cost is that the version is invisible in URLs, making debugging harder and breaking HTTP-level caching unless the \texttt{Vary} header is set correctly.
+
+\textbf{Query parameter versioning} appends a parameter: \texttt{/users?version=2}. It is the easiest to implement and to test (you can change versions in a browser bar), but it is the least common in production public APIs because the version now pollutes every URL and is easily forgotten or stripped by intermediaries.
+
+\begin{industrybox}{GitHub REST API Versioning (2022)}
+GitHub announced required API versioning for all REST API calls in November 2022. They chose header versioning via \texttt{X-GitHub-Api-Version: 2022-11-28}, using calendar dates rather than integer version numbers. This date-based approach lets GitHub make breaking changes on a predictable cadence without forcing major version number increments. Clients that do not send the header receive the oldest supported version, maintaining backward compatibility. GitHub's REST API as of 2024 serves over 1 billion requests per day, making the versioning strategy a constraint that every client in the ecosystem must eventually accommodate (GitHub Engineering Blog, 2022).
+\end{industrybox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{gRPC: When REST's Verbosity Becomes the Bottleneck}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Google built gRPC internally around 2001 under the name Stubby. The problem it was solving was real and measurable: Google's internal services were exchanging JSON over HTTP/1.1 at enormous scale, and the overhead was eating into their compute budget. JSON parsing is slow relative to binary deserialization. HTTP/1.1 sends text headers with every request, even if the headers have not changed. Request/response is the only communication pattern available; streaming requires workarounds. Stubby became gRPC and was open-sourced in 2016. It is now a graduated project at the CNCF (Cloud Native Computing Foundation).
+
+\subsection{Protocol Buffers: schema-first, binary, compact}
+
+The first thing that distinguishes gRPC from REST is its serialization format. REST typically uses JSON, which is human-readable text. gRPC uses Protocol Buffers (Protobuf), a binary serialization format invented by Google.
+
+You define your data structures in a \texttt{.proto} file. The \texttt{protoc} compiler reads this file and generates code in your language of choice (Go, Python, Java, C++, and many others) that handles serialization and deserialization automatically. The binary encoding is not readable by humans, but it is dramatically more compact than JSON and faster to encode and decode. A benchmark by Uber's engineering team in 2021 found Protobuf serialization roughly 5--7 times faster than JSON for equivalent payloads, with 3--4 times smaller wire size.
+
+\begin{termbox}{Protocol Buffers (Protobuf)}
+A language-neutral, platform-neutral binary serialization format developed by Google. Data schemas are defined in \texttt{.proto} files using a typed interface definition language. The \texttt{protoc} compiler generates client and server code stubs in the target language. Fields are identified by integer tags rather than string names, making the binary representation compact and the schema evolvable: adding optional fields with new tags is backward compatible.
+\end{termbox}
+
+\begin{thinkbox}
+\textbf{How does schema enforcement change operations?} With REST and JSON, a service can accidentally start sending a field named \texttt{user\_id} as a string when clients expect an integer. Nothing in the wire format prevents this. With Protobuf, the schema is the contract. Every generated client and server agrees on field names, types, and whether fields are required or optional. The compiler rejects invalid schemas before any code is deployed. Schema drift --- one of the most common causes of production incidents in microservice architectures --- becomes a compile-time error rather than a runtime mystery.
+\end{thinkbox}
+
+\subsection{HTTP/2 and the four streaming patterns}
+
+gRPC is built on HTTP/2, which enables capabilities that HTTP/1.1 architecturally cannot support. HTTP/2 multiplexes multiple logical streams over a single TCP connection, eliminating the head-of-line blocking that HTTP/1.1 suffers from. It also compresses headers, which are often the majority of payload size for small requests.
+
+More importantly, HTTP/2 enables streaming: a single connection can carry data flowing continuously in either direction. gRPC exposes four communication patterns, which is one of the primary reasons teams reach for it when REST cannot fit their access patterns:
+
+\begin{enumerate}
+  \item \textbf{Unary RPC}: One request, one response. Functionally equivalent to a REST call. This is the pattern used when you need a single answer to a single question.
+  \item \textbf{Server streaming}: One request, a stream of responses. The server sends a sequence of messages and the client reads them as they arrive. Useful for subscriptions, live data feeds, or returning a large result set in chunks without buffering the entire result in memory.
+  \item \textbf{Client streaming}: A stream of requests, one response. The client sends a sequence of messages and the server waits until the stream is complete before sending a single response. Useful for uploading large datasets or sending a sequence of events to be aggregated.
+  \item \textbf{Bidirectional streaming}: Both sides send streams of messages, interleaved in any order. The client and server read and write independently. Useful for real-time chat, collaborative editing, or any protocol where the conversation pattern cannot be predetermined.
+\end{enumerate}
+
+\begin{industrybox}{Netflix and Uber gRPC Adoption (2018--2022)}
+Netflix migrated their inter-service communication to gRPC starting in 2018. Their primary driver was the combination of Protobuf's schema enforcement and the reduction in serialization overhead at the scale of hundreds of millions of API calls per day across their microservice architecture. By 2021, gRPC was the default communication protocol for all new Netflix internal services (Netflix Tech Blog, 2021). Uber similarly adopted gRPC for their core services including the dispatch and location systems, where bidirectional streaming replaced polling-based architectures that were consuming disproportionate server resources. Uber's engineering blog noted that switching the location update service from REST polling to gRPC bidirectional streaming reduced server-side connection count by roughly 75\% (Uber Engineering Blog, 2018).
+\end{industrybox}
+
+\subsection{When to choose gRPC over REST}
+
+gRPC is not universally better than REST. It trades human readability and browser compatibility for performance and strict schema enforcement. The decision depends on three factors: who is calling the API, what performance requirements you have, and how important streaming is.
+
+gRPC excels in internal microservice communication, where both caller and provider are controlled by your organization and can regenerate client stubs when schemas change. It also excels in high-throughput, low-latency paths: if a service handles millions of calls per minute and every millisecond of serialization overhead accumulates to meaningful CPU cost, Protobuf's binary efficiency matters. And it excels when the communication pattern is genuinely bidirectional or streaming, since REST cannot express this natively.
+
+REST excels in public APIs, where you cannot require callers to install a Protobuf toolchain and compile stubs. It also excels when debuggability matters more than raw performance: a REST API response can be read directly in a browser, logged in human-readable form, and debugged with curl. A Protobuf binary response requires tooling to decode.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{GraphQL: Letting the Client Decide What It Needs}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Facebook introduced GraphQL internally in 2012 and open-sourced it in 2015. The problem it was solving was specific to Facebook's situation: a mobile app with constrained bandwidth talking to a backend that was growing its feature set rapidly. REST was creating two problems simultaneously.
+
+The first problem was \textbf{over-fetching}. A \texttt{GET /users/42} endpoint returns the full user object: name, email, profile photo URL, account creation date, friend count, last login time, bio, settings preferences. But the mobile client that called it only needs the name and profile photo to render a notification. The rest is wasted bandwidth and parsing work, which matters greatly on a 2G connection.
+
+The second problem was \textbf{under-fetching}, also called the \textbf{N+1 problem}. To render a news feed, the client needs the posts and, for each post, the author's name and avatar. A REST API forces the client to: (1) call \texttt{GET /feed} to get 20 posts, then (2) call \texttt{GET /users/\{id\}} twenty times to fetch each author. That is 21 HTTP requests to render one screen. Batching endpoints (\texttt{GET /users?ids=1,2,3}) were bolted on as workarounds but never felt clean.
+
+\subsection{How GraphQL works}
+
+GraphQL exposes a single endpoint, typically \texttt{POST /graphql}. The client sends a query that precisely describes the shape of data it wants, and the server returns exactly that shape --- no more, no less.
+
+A query for the notification rendering case above might look like:
+
+\begin{verbatim}
+query {
+  user(id: "42") {
+    name
+    profilePhotoUrl
+  }
+}
+\end{verbatim}
+
+The server returns only those two fields. The over-fetching problem disappears: the response is exactly the data the client asked for. The under-fetching problem can also be solved: a single query can traverse relationships across the graph.
+
+\begin{verbatim}
+query {
+  feed {
+    posts {
+      content
+      author {
+        name
+        avatarUrl
+      }
+    }
+  }
+}
+\end{verbatim}
+
+One request returns posts and their authors together. The client no longer needs to issue N subsequent requests.
+
+\begin{industrybox}{GitHub GraphQL API Learnings (2016--2024)}
+GitHub launched their GraphQL API in 2016, alongside the existing REST API, and wrote a detailed retrospective on why. The REST API had over 300 documented endpoints, and API consumers routinely hit rate limits not because they needed so much data but because they needed to make many small calls to assemble the data they actually wanted. A typical operation like ``list pull requests with their statuses and reviewers'' required 4--5 REST calls. The GraphQL equivalent was one. GitHub found that after switching, developers built integrations with 60--70\% fewer API calls on average (GitHub Engineering Blog, 2016). By 2024, the GitHub GraphQL API serves millions of queries per day and has become the recommended path for new GitHub App integrations.
+\end{industrybox}
+
+\subsection{The N+1 problem: GraphQL's internal performance trap}
+
+GraphQL solves the client-side N+1 problem but can create a server-side one. When the server receives the query asking for 20 posts and each post's author, a naive implementation resolves fields depth-first: fetch post 1, resolve its author (one DB query), fetch post 2, resolve its author (another DB query), and so on. That is 1 query for the feed plus 20 queries for the authors. The client made one request; the server made 21 database calls.
+
+\begin{termbox}{DataLoader Pattern}
+A batching and caching mechanism invented by Facebook to solve the server-side N+1 problem in GraphQL resolvers. Instead of resolving each author field independently, DataLoader collects all pending \texttt{user(id)} calls for a given execution tick and issues them as a single batched query (\texttt{SELECT * FROM users WHERE id IN (1, 2, 3, ...)}). The result is then distributed back to each resolver that requested it. DataLoader also caches within a single request, so if the same author wrote two posts, their record is fetched once.
+\end{termbox}
+
+\begin{thinkbox}
+\textbf{Should you always use DataLoader?} Yes, in any GraphQL resolver that fetches from a database or another service. Without it, the performance of your GraphQL server degrades proportionally with query depth and list size. A query that looks innocent at small scale can trigger hundreds of database calls in production. DataLoader is not optional; it is a mandatory companion to any production GraphQL implementation.
+\end{thinkbox}
+
+\subsection{When GraphQL helps and when it does not}
+
+GraphQL is best suited to two scenarios: rapidly evolving product surfaces (where the schema of needed data changes often and you cannot afford to add a new REST endpoint for every UI change) and mobile/bandwidth-constrained clients (where over-fetching has a measurable cost). It is also valuable when the data naturally forms a graph of interconnected entities and clients regularly traverse relationships.
+
+GraphQL is a poor choice for simple CRUD APIs with a small number of well-defined operations. The tooling overhead (schema definition, resolver implementation, DataLoader setup) is significant, and the benefits accrue only when clients actually need to express complex, varied queries. It is also a poor choice for APIs consumed by external third parties who are unfamiliar with GraphQL, since the learning curve is steeper than REST.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Rate Limiting: Protecting Your API from Overload}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Every public-facing API, and many internal ones, must enforce rate limits. Without them, a single misbehaving client --- or a coordinated attacker --- can exhaust server capacity and degrade service for all other clients. Rate limiting is the mechanism that bounds how many requests a client can make in a given time window.
+
+The policy question (``how many requests per second?'') is separate from the algorithmic question (``how do I enforce that efficiently at scale?''). Four algorithms dominate the implementation space.
+
+\subsection{Token bucket}
+
+The \textbf{token bucket} algorithm is the most widely deployed. Imagine a bucket that can hold a maximum of $N$ tokens. Tokens are added to the bucket at a fixed rate (e.g., 100 tokens per second). Each API request consumes one token. If the bucket has tokens, the request is allowed and one token is removed. If the bucket is empty, the request is rejected (or queued).
+
+The key property of token bucket is that it allows \textbf{burst}: if a client has been quiet for a while, the bucket fills up to its maximum capacity. When the client suddenly sends a burst of requests, they can consume the accumulated tokens without being rate-limited, up to the bucket capacity. This models real-world traffic patterns well: a client that sends 10 requests all at once after being idle should not be penalized the same way as a client that sends requests continuously at double the allowed rate.
+
+Token bucket requires storing, per client, only two numbers: the current token count and the last refill timestamp. It scales well.
+
+\begin{industrybox}{Cloudflare Rate Limiting (2023--2024)}
+Cloudflare runs rate limiting for millions of domains from their global network. They published implementation details in 2023 showing they use a variant of the sliding window counter algorithm (described below) for their standard rate limiting product, processing billions of rate-limit decisions per day with sub-millisecond latency. The key engineering insight they published is that storing exact per-client state at this scale is infeasible; approximate algorithms with bounded error are necessary. Their implementation accepts a small error margin (typically less than 1\% over-admission) in exchange for orders-of-magnitude improvement in throughput and memory efficiency (Cloudflare Blog, 2023).
+\end{industrybox}
+
+\subsection{Leaky bucket}
+
+The \textbf{leaky bucket} algorithm models a bucket with a hole in the bottom. Requests pour into the bucket from above at whatever rate they arrive. The bucket drains at a fixed rate through the hole (processing one request per fixed time interval). If the bucket overflows (arrivals exceed the capacity), requests are dropped.
+
+The key property of leaky bucket is that it enforces a \textbf{constant output rate}. Regardless of how bursty the input is, the downstream system always receives requests at the same rate. This is useful when you are protecting a backend that is sensitive to instantaneous load spikes rather than sustained average load. The cost is that requests get queued and may experience variable latency, and burst accommodation requires a larger bucket (which increases memory usage and queuing delay).
+
+\subsection{Sliding window log}
+
+The \textbf{sliding window log} algorithm stores a timestamp for every request in a log. When a new request arrives, the algorithm removes all timestamps older than the window (e.g., older than 60 seconds) and counts the remaining entries. If the count is below the limit, the request is allowed and the timestamp is added. If not, the request is rejected.
+
+This is the most accurate algorithm: there are no edge cases around window boundaries. If the limit is 100 requests per minute, you will never allow 200 requests by sending 100 at 11:59:59 and 100 at 12:00:01. The cost is memory: you store one entry per request per client, which can be significant if clients send many requests.
+
+\subsection{Sliding window counter}
+
+The \textbf{sliding window counter} is a practical approximation of the sliding window log that uses only two counters. It tracks the count in the previous complete window and the count in the current window, then estimates the count in the rolling window by weighting them by their time overlap. For example, if the window is 60 seconds and you are 15 seconds into the current minute, the algorithm estimates the rolling count as: 75\% of the previous minute's count plus 100\% of the current minute's count.
+
+This approximation introduces a small error (at most equal to the rate limit itself, at window boundaries) but requires only O(1) storage per client. Twitter's API v2 rate limiting uses this approach, and it is the basis of many Redis-backed rate limiter implementations.
+
+\begin{industrybox}{Twitter/X API v2 Rate Limits (2023)}
+Twitter's (now X's) API v2 rate limits are publicly documented and informative about real-world rate limit design. The free tier allows 500,000 tweets per month for write access and 1,500 tweets read per 15-minute window per app. The enterprise tier (formerly Academic Research) allowed up to 10 million tweets per month. The rate limits are enforced at multiple granularities simultaneously: per-user, per-app, and per-endpoint. The \texttt{429 Too Many Requests} response includes \texttt{x-rate-limit-limit}, \texttt{x-rate-limit-remaining}, and \texttt{x-rate-limit-reset} headers that tell the client exactly how many requests remain and when the window resets (X Developer Documentation, 2023).
+\end{industrybox}
+
+\begin{trapbox}{Ignoring Rate Limit Headers in Your Design}
+A common interview mistake is designing a rate-limited API and then not explaining how clients know they are being rate-limited or how they should recover. A complete rate-limit design includes the response code (429), the informational headers that accompany it (\texttt{Retry-After} with a Unix timestamp or seconds-until-reset, \texttt{X-RateLimit-Remaining}), and a client-side strategy (exponential backoff with jitter). Saying ``I'd return 429'' is necessary but not sufficient. The interviewer will push: ``What does the client do when it gets a 429?'' Have an answer: inspect \texttt{Retry-After}, wait the specified duration, retry with exponential backoff plus random jitter to prevent the thundering herd that occurs when all clients retry simultaneously.
+\end{trapbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Idempotency Keys: Making Retries Safe}
+\label{sec:idempotency}
+% ─────────────────────────────────────────────────────────────────────────────
+
+The most dangerous moment in a distributed system is a network timeout on a non-idempotent operation. You call \texttt{POST /payments} to charge a customer \$100. The server receives the request, charges the card, and prepares the response. Then the network drops. Your client never receives the response. What do you do? If you retry, you might charge the customer \$200. If you do not retry, you might lose the transaction. Without idempotency, you cannot safely retry non-idempotent operations.
+
+Idempotency keys are the solution. The client generates a unique identifier (typically a UUID v4) before making the request and includes it in a header, conventionally named \texttt{Idempotency-Key}. The server, on receiving the request, checks whether it has seen this idempotency key before:
+
+\begin{itemize}
+  \item If not, it processes the request, stores the result alongside the idempotency key, and returns the result.
+  \item If yes, it returns the stored result immediately without re-executing the operation.
+\end{itemize}
+
+The server effectively becomes a function of the key: the same key always returns the same result, regardless of how many times the client calls. Retries are now safe.
+
+\begin{industrybox}{Stripe Idempotency Keys (2016--2024)}
+Stripe's idempotency key implementation is the canonical public example of this pattern. Stripe's Charges API, PaymentIntents API, and every other write endpoint accepts an \texttt{Idempotency-Key} header. Stripe stores the key and the associated response for 24 hours. If the same key is sent within that window, Stripe returns the stored response without re-executing the charge. Stripe engineering published a detailed blog post in 2018 describing the implementation: they store idempotency records in their primary database alongside the resource being created, wrapped in the same database transaction. This ensures atomicity: either both the payment and the idempotency record are committed, or neither is. The idempotency store is partitioned by the key itself, giving consistent hashing properties that make it horizontally scalable. Stripe processes several million payment API calls per day, a volume that validates this design at real scale (Stripe Engineering Blog, 2018).
+\end{industrybox}
+
+\begin{termbox}{Idempotency Key}
+A unique, client-generated identifier (typically a UUID v4) sent with a non-idempotent API request to enable safe retries. The server stores a mapping from the key to the operation's result. On a second request with the same key, the server returns the cached result without re-executing the operation. The key is the client's commitment that this particular request represents exactly one logical operation; the server's job is to honour that commitment under all retry conditions.
+\end{termbox}
+
+\begin{thinkbox}
+\textbf{Who is responsible for generating the idempotency key?} The client always generates the key, not the server. This is counter-intuitive: shouldn't the server, which knows whether the operation ran, be the authority? No. The purpose of the key is to identify a \emph{client's intention} to perform a specific operation exactly once. The client generates the key before the first attempt, stores it locally, and reuses it on every retry of that same logical operation. If the server generated the key and returned it in the response, the client would need to receive that response to get the key --- which it cannot do if the network dropped, which is exactly the failure case we are trying to handle.
+\end{thinkbox}
+
+\subsection{Designing idempotency into your system}
+
+Not every operation needs idempotency keys; the cost of storing keys and checking them on every write request is real. The operations that demand them are any that trigger irreversible real-world effects: charging a payment method, sending an email or SMS, creating a resource that represents a unique business entity (an order, a subscription), or initiating an external API call that itself is not idempotent.
+
+Read operations (GET) are inherently safe to retry and do not need idempotency keys. Naturally idempotent operations like setting a user's name to a specific string can be retried freely. The key is identifying the class of operations that are both expensive to re-execute (creating a charge) and not naturally idempotent (calling them twice creates two charges).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{The API Gateway Pattern}
+% ─────────────────────────────────────────────────────────────────────────────
+
+When a system grows to multiple backend services, every service would independently need to implement authentication, rate limiting, SSL termination, logging, and request routing. This is not just duplicate work; it is duplicate \emph{security-critical} work that is fragile when implemented independently by multiple teams. The API gateway pattern centralises these concerns at a single entry point.
+
+\begin{termbox}{API Gateway}
+A server that sits in front of a collection of backend services and acts as a single entry point for all client requests. The gateway handles cross-cutting concerns --- authentication token validation, rate limiting, SSL termination, request logging, tracing header injection, and routing --- so that individual backend services do not have to. The gateway translates external requests into internal service calls and assembles the response.
+\end{termbox}
+
+The API gateway is not just a reverse proxy. A reverse proxy forwards requests to a single backend. An API gateway routes different request paths to different backend services, transforms protocols (e.g., REST externally to gRPC internally), and aggregates responses from multiple services into a single response for the client. It is the architectural equivalent of the facade pattern applied to a service mesh.
+
+\begin{industrybox}{AWS API Gateway, Kong, and Apigee (2020--2024)}
+The managed API gateway market consolidated significantly between 2020 and 2024. AWS API Gateway, Kong (open source and enterprise), and Google's Apigee are the three major platforms as of 2024. AWS API Gateway handles over 100 billion API calls per month across AWS customers (AWS re:Invent, 2023). Kong, the most widely deployed open-source API gateway, reported over 250 million downloads of their open-source gateway and adoption by 60\% of Fortune 500 companies as of 2024. The trend in the market is toward combining the API gateway with service mesh capabilities (Kong Mesh, AWS App Mesh) to handle both North-South traffic (client to gateway) and East-West traffic (service to service) within a unified policy framework (Kong Blog, 2024).
+\end{industrybox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Decision Framework: REST vs.\ gRPC vs.\ GraphQL}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Interviewers will directly ask you to choose and defend a protocol. The honest answer is always ``it depends,'' but a good engineer explains \emph{what} it depends on. Here is the framework:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Criterion} & \textbf{REST} & \textbf{gRPC} & \textbf{GraphQL} \\
+\midrule
+Who calls the API & External clients, browsers, third-party developers & Internal services, controlled clients & Frontend teams with diverse, evolving data needs \\
+Schema enforcement & Informal (OpenAPI docs) & Strict (Protobuf compiler) & Strict (SDL schema) \\
+Serialisation & JSON (human-readable) & Protobuf (binary, compact) & JSON (human-readable) \\
+Streaming support & Workarounds (SSE, WebSocket) & First-class (4 patterns) & Subscriptions (via WebSocket) \\
+Debuggability & Excellent (curl, browser) & Moderate (needs tooling) & Good (GraphiQL IDE) \\
+Bandwidth efficiency & Moderate (over-fetch common) & Excellent & Excellent (exact fields) \\
+Learning curve for consumers & Low & Moderate (requires codegen) & Moderate (query language) \\
+Best for & Public APIs, CRUD, external partners & Microservice mesh, streaming, high throughput & Mobile apps, evolving frontends, graph-shaped data \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The practical heuristic for interviews: default to REST for public-facing APIs, gRPC for internal service-to-service communication where performance or streaming matter, and GraphQL when the client has highly variable data needs and you want to avoid proliferating endpoint-per-view-type REST endpoints.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Critical Numbers Reference}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Number} & \textbf{What it means} & \textbf{Source / Year} \\
+\midrule
+24 hours & Stripe's idempotency key retention window & Stripe Engineering, 2018 \\
+36 KB & gRPC maximum default frame size over HTTP/2 & gRPC spec (adjustable) \\
+4 MB & gRPC maximum default message size (configurable) & gRPC documentation, 2024 \\
+5--7$\times$ & Protobuf serialization speed advantage over JSON & Uber Engineering, 2021 \\
+3--4$\times$ & Protobuf wire-size reduction over JSON & Uber Engineering, 2021 \\
+429 & HTTP status code for rate limit exceeded & RFC 6585, 2012 \\
+100 req/s & Typical free-tier API rate limit (e.g., many SaaS APIs) & Industry convention \\
+1,000 req/s & Typical paid-tier API rate limit (varies widely) & Industry convention \\
+500,000 tweets/month & Twitter/X free-tier write limit & X Developer Docs, 2023 \\
+$>$100B calls/month & AWS API Gateway monthly volume & AWS re:Invent, 2023 \\
+1 billion/day & GitHub REST API request volume & GitHub Engineering, 2022 \\
+250M+ downloads & Kong open-source gateway downloads & Kong Blog, 2024 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Design Application}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Application 1: Payment API with idempotency}
+
+You are designing the payment API for an e-commerce platform. A customer clicks ``Place Order'' once but due to a network hiccup the client-side code retries the request. Without idempotency, the customer is charged twice.
+
+The correct design: the client generates a UUID idempotency key when the user initiates checkout (not on button click --- on session start, so refreshes are covered). Every call to \texttt{POST /payments} includes the header \texttt{Idempotency-Key: \{uuid\}}. The payment service stores the key and result in the same database transaction as the payment record. On retry, the server returns the stored result without re-running the charge. The key expires after 24 hours (matching Stripe's convention), after which a new key must be generated for new transactions.
+
+The API should return 201 on first success and 200 on repeated calls with the same key (or consistently 200 for both --- the important thing is that the response body is identical and the operation did not re-execute). A 409 Conflict is appropriate if the same key is sent with different request parameters, indicating a client programming error.
+
+\subsection{Application 2: Public API rate limiting}
+
+You are designing the API gateway for a developer platform that offers a REST API. You need to enforce rate limits of 1,000 requests per minute for paid customers and 100 requests per minute for free-tier customers.
+
+The correct design: use a token bucket algorithm per customer, stored in Redis (which has atomic increment operations that make rate limit checks race-condition-free). The bucket capacity is set to the per-minute limit (allowing controlled burst up to the limit). Tokens refill at 1,000/60 = 16.7 per second for paid customers.
+
+Every request arrives at the API gateway. The gateway queries Redis for the customer's token count using a Lua script that atomically decrements the count and returns whether the request is allowed. If allowed, the request proceeds to the backend with headers injected: \texttt{X-RateLimit-Limit}, \texttt{X-RateLimit-Remaining}, and \texttt{X-RateLimit-Reset}. If denied, the gateway returns 429 with \texttt{Retry-After} set to the number of seconds until the next token is available.
+
+At massive scale (Cloudflare-level, billions of requests per day), Redis-backed exact counting becomes a bottleneck. The solution is the sliding window counter approximation, which trades a small admission error for dramatically lower storage and computation requirements.
+
+\subsection{Application 3: Internal microservice communication with gRPC}
+
+You are designing the communication layer between the order service and the inventory service in a high-throughput order processing system. The order service calls inventory 10,000 times per second to check and decrement stock.
+
+REST is the wrong choice here. JSON parsing at 10,000 calls/second generates meaningful CPU overhead that can be eliminated. HTTP/1.1 connection pooling under this load is complex; HTTP/2 multiplexing handles it naturally. Schema drift between services has caused several production incidents.
+
+The correct design: define a Protobuf schema in \texttt{inventory.proto} with an \texttt{InventoryService.\allowbreak{}CheckAndDecrement} RPC. Generate client stubs for the order service and server stubs for the inventory service. The order service calls the gRPC endpoint using the generated stub; the transport is HTTP/2 with binary Protobuf encoding. Schema changes require updating the \texttt{.proto} file and regenerating stubs, making incompatible changes a compile-time error rather than a production incident. The API gateway handles the REST-to-gRPC translation for any external-facing calls that need to reach these services.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Curiosity Corner}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{curiobox}{What is REST Level 3 (HATEOAS) and why does almost no one implement it?}
+Roy Fielding's REST model is described in terms of a Maturity Model (Richardson Maturity Model). Level 0 is plain HTTP tunnelling. Level 1 introduces resources. Level 2 adds correct HTTP method usage. Level 3, called HATEOAS (Hypermedia As The Engine Of Application State), requires that every response include hyperlinks to all valid next actions. A payment resource would include a link to confirm the payment, a link to cancel it, and a link to issue a refund, each with the appropriate HTTP method. The idea is that clients never hard-code URL paths; they discover them from responses and navigate the API like a browser navigates a website.
+
+In theory, HATEOAS produces perfectly decoupled, self-describing APIs. In practice, almost no public API implements it. The reason is cost without benefit: client developers still need to read documentation to understand what the hyperlinks mean and what data to send. The links save them from knowing the URL structure, but URL structure is the least of their concerns. The overhead of parsing and following hypermedia links adds complexity without reducing the coupling that actually matters. GitHub's API was one of the few large REST APIs that partially implemented HATEOAS and they eventually moved away from it in their newer endpoints.
+\end{curiobox}
+
+\begin{curiobox}{How does gRPC handle backward compatibility when you change a Protobuf schema?}
+Protobuf uses integer field numbers rather than field names in the binary encoding. This design choice is what makes schema evolution safe. If you add a new optional field with a new field number (e.g., field 5), old clients that do not know about field 5 simply ignore it when they deserialize. Old servers that receive a message with field 5 also ignore it. Backward compatibility is preserved.
+
+The rules for safe Protobuf evolution are: never reuse a field number (even if you deleted the original field, because old code may still try to deserialize it as the old type), never change the type of an existing field, and never rename a field (field names are not encoded in the binary format, so renaming is safe for the wire format but will break any JSON serialization of the Protobuf, which some systems use for logging or REST bridges). Fields that are removed should be marked as \texttt{reserved} so the number is blocked from future reuse.
+\end{curiobox}
+
+\begin{curiobox}{Authentication vs.\ authorization: how does an API gateway handle each?}
+Authentication is the act of establishing identity: who are you? Authorization is the decision about what an authenticated identity is permitted to do. They are distinct steps that happen in sequence and should never be conflated.
+
+An API gateway typically handles authentication centrally. A client sends a JWT in the \texttt{Authorization: Bearer \{token\}} header. The gateway validates the token's signature using the issuer's public key, checks that it has not expired, and extracts the claims (user ID, roles, scopes). If the token is invalid, the gateway returns 401 without ever forwarding the request to the backend. If valid, the gateway injects the decoded identity into a trusted internal header (e.g., \texttt{X-User-Id: 42}) and forwards the request.
+
+Authorization then happens in the backend service. The service receives the trusted \texttt{X-User-Id} header (which the gateway validated and set; the service trusts it because it only accepts requests from the gateway, not from the internet) and makes its own decision: is user 42 allowed to perform this specific operation on this specific resource? Centralising authentication in the gateway and delegating authorization to services is the correct separation of concerns. It keeps the gateway stateless (no business logic) and keeps authorization rules close to the data they protect.
+\end{curiobox}
+
+\begin{curiobox}{Why do payment APIs use a 24-hour idempotency key window instead of indefinitely?}
+Storing idempotency keys indefinitely would require unbounded storage and would complicate database cleanup. More importantly, the business case for idempotency is about network retries, not about intentional reuse over long periods. A client that fails to receive a response to a payment call will retry within seconds to minutes, not days.
+
+The 24-hour window covers all practical retry scenarios, including clients that implement exponential backoff with multi-hour delays (which is itself a sign of misconfiguration). After 24 hours, the window for a legitimate retry of the same logical operation has passed. If a client sends the same idempotency key more than 24 hours later, it is either a programming error (the client is replaying an old operation by mistake) or a new logical operation that should have generated a new key. Stripe's 24-hour window is a reasonable industry default; some systems use shorter windows (1 hour) for lower-value operations and longer windows for high-stakes ones.
+\end{curiobox}
+
+\begin{curiobox}{How does GraphQL handle authentication and authorization differently from REST?}
+This is an area where GraphQL's single-endpoint design creates a subtle complication. In REST, you can apply authorization rules at the router level: a request to \texttt{DELETE /admin/users} can be blocked at the gateway if the caller lacks admin scope. This is possible because the endpoint URL encodes the operation's intent.
+
+In GraphQL, all requests go to \texttt{POST /graphql}. The operation's intent is encoded in the query body, not the URL. The gateway cannot authorize individual operations without parsing the GraphQL query, which requires a full GraphQL parser in the gateway layer. Most teams solve this differently: the gateway still handles authentication (validates the token and injects identity), but authorization is pushed entirely into the resolver level. Each resolver checks whether the authenticated user has permission to resolve that specific field for that specific resource. This is more granular than REST authorization but also more complex: you must ensure every resolver performs its own access check, because there is no single choke point that can enforce it centrally.
+\end{curiobox}
+
+\begin{curiobox}{What is API-first design and why do some teams insist on it?}
+API-first design is a development methodology where the API contract is defined and agreed upon before any implementation begins. Teams write an OpenAPI specification (for REST) or a Protobuf schema (for gRPC) as the first artifact of a feature, before any server or client code. Both teams (the team building the server and the team building the client) then implement against this contract independently and in parallel.
+
+The benefit is parallelism and contract clarity. Without API-first, the server is typically built first and the client team waits. When the server is done, the client discovers that the response format is different from what they expected. With API-first, misunderstandings are surfaced during the contract review (before any code exists) rather than during integration testing (when both sides have weeks of work to change). Tools like Prism can serve a mock server from an OpenAPI spec, letting client teams start building against a realistic API before the server exists. Stripe, Twilio, and most developer-platform companies use API-first because their APIs are their product: a mistake in the API design ships to thousands of integrators and cannot be easily reverted.
+\end{curiobox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\newpage
+\section{Self-Quiz}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{quizbox}
+\textbf{Question 1.} You are designing a payment endpoint. A client calls \texttt{POST /payments} and the network drops after the server commits the charge but before the response reaches the client. The client retries. Walk me through the complete mechanism that prevents the customer from being charged twice. What does the client generate, when does it generate it, what header does it send, and what does the server do on the second call?
+
+\vspace{10pt}
+
+\textbf{Question 2.} I am building an internal order-processing system where the inventory service is called 8,000 times per second by the order service. You have proposed REST over HTTP/1.1. I'm pushing back. Make the argument for why you would switch to gRPC and what concrete benefits you would expect to measure.
+
+\vspace{10pt}
+
+\textbf{Question 3.} What is the difference between a 401 and a 403 response? Give me a concrete scenario for each and explain what the client should do differently upon receiving each code.
+
+\vspace{10pt}
+
+\textbf{Question 4.} I want to rate-limit my public API to 1,000 requests per minute per API key. Compare the token bucket and sliding window counter algorithms. Which would you choose for a Redis-backed implementation at 50,000 concurrent API keys, and why?
+
+\vspace{10pt}
+
+\textbf{Question 5.} A startup tells you they are building a mobile app and they are choosing between REST and GraphQL for their backend API. They have three product engineers who will be rapidly iterating on the UI. Make the case for GraphQL, then make the case against it. Which would you recommend, and what is the single most important factor in your recommendation?
+\end{quizbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\newpage
+\section*{Model Answers}
+\addcontentsline{toc}{section}{Model Answers}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{answerbox}
+\textbf{Answer 1 (Idempotency mechanism).} The client generates a UUID v4 idempotency key when the user initiates the checkout session --- not on each button click, but once per logical payment intent. This key is stored client-side. Every call to \texttt{POST /payments} for this payment includes the header \texttt{Idempotency-Key: \{uuid\}}. On the first call, the server receives the request, begins a database transaction, processes the charge, writes the payment record, and writes a second record pairing the idempotency key with the response body, committing both atomically. It then returns the response. On the retry (which arrives because the client timed out), the server sees the idempotency key in the header, looks it up, finds the stored result, and returns that stored result without executing the charge again. The customer is charged exactly once regardless of how many retries occur. The key is retained for 24 hours (following Stripe's convention), after which a new key would be required for a new transaction.
+
+\vspace{8pt}
+\textbf{Answer 2 (gRPC case for high-throughput internal service).} At 8,000 calls/second, JSON serialization overhead accumulates. Protobuf is 5--7 times faster to serialize/deserialize and produces 3--4 times smaller payloads (Uber Engineering, 2021), meaning CPU spent parsing JSON translates directly to server cost. HTTP/1.1 connection pooling at this call rate requires tuning that HTTP/2 multiplexing provides automatically, reducing connection count and latency jitter. Schema enforcement via Protobuf catches breaking changes at compile time rather than causing production incidents. Generated client stubs eliminate the need for the order service to manually construct HTTP requests. I would measure post-migration: serialization latency (p99), CPU utilisation on inventory service nodes, and connection count. I would expect p99 latency to drop by 10--30ms and CPU to drop by 15--25\%.
+
+\vspace{8pt}
+\textbf{Answer 3 (401 vs. 403).} 401 means authentication failure: the server does not know who is making the request. Scenario: a client calls \texttt{GET /account} with no \texttt{Authorization} header, or with an expired JWT. The server returns 401 with a \texttt{WWW-Authenticate} header indicating how to authenticate. The correct client response is to prompt the user to log in and obtain a fresh token. 403 means authorization failure: the server knows exactly who is making the request and has decided that identity is not permitted to perform this action. Scenario: a standard user calls \texttt{DELETE /admin/users/42}. The JWT is valid, the identity is known, but the user lacks admin role. The server returns 403. The correct client response is to display a ``permission denied'' message --- re-authenticating will not help because the problem is policy, not identity.
+
+\vspace{8pt}
+\textbf{Answer 4 (Rate limit algorithm choice).} Token bucket is conceptually cleaner and handles burst naturally, but storing the exact token count and last-refill timestamp in Redis for 50,000 concurrent keys requires a Lua script for atomic read-modify-write on every request (to avoid race conditions), which is feasible. Sliding window counter requires two Redis counters per key (current window and previous window) plus a read on each request, but has simpler atomicity requirements since counter increments are atomic in Redis. For 50,000 keys at 1,000 req/min each (potentially 50 million requests per minute total), I would choose sliding window counter. It is O(1) storage and O(1) computation per request, the Redis commands are simpler (INCR and GET with EXPIRE), and the approximation error is acceptable for rate limiting (slightly over-admitting by at most the burst size at window boundaries, which is tolerable). Token bucket is preferable when fine-grained burst control is a hard requirement.
+
+\vspace{8pt}
+\textbf{Answer 5 (REST vs. GraphQL for rapid-iteration mobile startup).} For GraphQL: three product engineers rapidly changing UI means the data shape will change frequently. With REST, each UI change that needs different data requires either a new endpoint or tolerating over-fetching. GraphQL lets the frontend define exactly what data it needs, so backend APIs do not need to change every time the UI changes. Mobile bandwidth efficiency improves since responses carry exactly the requested fields. Against GraphQL: the DataLoader pattern is mandatory but not automatic --- without it, every list query creates an N+1 database problem. The tooling setup cost (schema definition, resolver setup, DataLoader) is significant for a three-person team. Caching is harder since all requests are POSTs to one endpoint, bypassing HTTP-level cache semantics. My recommendation is GraphQL, with one condition: the team must implement DataLoader from day one. The single most important factor is the pace of UI iteration. Three product engineers will want to move fast without waiting for backend endpoint changes. GraphQL eliminates that bottleneck.
+\end{answerbox}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\newpage
+\section{What's Next: L1-12 --- Security Fundamentals}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{insightbox}
+\textbf{What comes next and why it builds directly on this lesson.}
+
+You have just learned how to design the \emph{contract} between services: what protocol to use, how to handle retries safely, how to protect the API from overload. L1-12 (Security Fundamentals) addresses what happens when that contract is exploited. The connection is direct and essential.
+
+Every API design decision in this lesson has a security implication. Statelessness relies on JWT tokens --- what happens when those tokens are stolen or forged? Rate limiting protects against abuse --- what specific attack patterns is it defending against, and what attacks require different defences? Idempotency keys prevent duplicate operations --- how do you ensure they cannot be predicted or forged by an attacker?
+
+L1-12 will cover the authentication mechanisms (OAuth 2.0, JWT, API keys) that underpin everything you designed in this lesson, the authorisation models (RBAC, ABAC) that the gateway enforces, the attack classes (SQL injection, XSS, CSRF, replay attacks) that target API endpoints, and the encryption protocols that protect data in transit and at rest. After L1-12, you will have closed the full loop from ``how do services talk'' (networking, L1-01) through ``what do they say'' (API design, L1-11) to ``how do they stay safe'' (security, L1-12).
+
+Completing L1-12 also advances you significantly toward Gate 2 (which requires L1-05, L1-06, L1-07, and L1-11 --- and L1-11 is now done). You are building toward the mock interview sessions, and the pace is accelerating.
+\end{insightbox}
+
+\end{document}
