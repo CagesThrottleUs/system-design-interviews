@@ -30,60 +30,112 @@
                       sees driver move)
 ```
 
-## Architecture Diagram (ASCII)
+## Architecture Diagram
+
+```mermaid
+flowchart LR
+    subgraph DriverPipeline["Driver Location Pipeline"]
+        DA([Driver App])
+        LS["Location Service\n(WebSocket / gRPC)"]
+        KF["Kafka\nlocation events"]
+        FL["Flink\nstreaming job"]
+        GEO[("Redis GEOSET\ngeo:{city_id}\ncurrent position TTL)")]
+        LH[("Location History\nCassandra\nappend-only audit")]
+
+        DA -->|every 4s| LS
+        LS --> KF
+        KF --> FL
+        FL -->|GEOADD| GEO
+        FL -->|append| LH
+    end
+
+    subgraph RideRequestFlow["Ride Request Flow"]
+        RA([Rider App])
+        AG["API Gateway"]
+        DS["Dispatch\nService"]
+        ETA["ETA Service\n(road graph)"]
+        SC{{Score &\nSelect top-3}}
+        DDS["Driver Dispatch\nService"]
+        TS[("Trip Service\nPostgreSQL\nstate machine")]
+        DSC[("Driver Status\nRedis\nTTL 20s)")]
+
+        RA -->|POST /rides| AG
+        AG --> DS
+        DS -->|GEORADIUS 3km| GEO
+        GEO -->|candidate drivers| DS
+        DS -->|filter AVAILABLE| DSC
+        DSC -->|available list| SC
+        DS -->|calc ETA| ETA
+        ETA -->|ETA per driver| SC
+        SC -->|top candidate| DDS
+        DDS -->|WebSocket offer| DA
+        DA -->|accept / reject| DDS
+        DDS -->|create trip\nSELECT FOR UPDATE| TS
+        TS -->|update status=BUSY| DSC
+    end
+
+    subgraph SurgePricing["Surge Pricing (background)"]
+        FL2["Flink\nstreaming job"]
+        SRG[("Surge Multipliers\nRedis\nper H3 cell)")]
+        PS["Pricing Service"]
+
+        KF -->|supply/demand\nper H3 cell| FL2
+        FL2 -->|write multiplier| SRG
+        SRG -->|read surge| PS
+        PS -->|surge multiplier| RA
+    end
 ```
-DRIVER LOCATION UPDATE FLOW (every 4 seconds):
-Driver App → HTTPS POST /location → Load Balancer → Location Service
-                                                          │
-                                           ┌──────────────┴──────────────┐
-                                           ▼                             ▼
-                                    Redis GEOSET                  Cassandra
-                                    (city:NYC geo)                (location_history,
-                                    GEOADD key lat lon            for trip replay)
-                                    [serving index]               [audit log]
 
+## Sequence Diagram: Ride Request Flow
 
-RIDE REQUEST FLOW:
-Rider App
-  │ POST /ride/request {origin, destination}
-  ▼
-API Gateway
-  │
-  ▼
-Dispatch Service
-  │
-  ├─ 1. GEORADIUS city:NYC {lat} {lon} 3km → [driver_id_list]
-  │      (Redis: O(log M + N) where N = results in radius)
-  │
-  ├─ 2. Filter: only AVAILABLE status drivers
-  │      (check Trip Service or driver status cache)
-  │
-  ├─ 3. Score each candidate:
-  │      score = f(distance, ETA, driver_rating, heading_alignment)
-  │
-  ├─ 4. Select top-3 candidates; send trip request to #1
-  │      (via WebSocket if connected; push notification if not)
-  │
-  ├─ 5. Start 15-second accept timer
-  │
-  ├─ 6a. Driver accepts → Trip Service: create_trip(rider, driver)
-  │       └─ PostgreSQL BEGIN; INSERT trip; UPDATE driver status=BUSY; COMMIT
-  │
-  └─ 6b. Driver rejects or times out → send to candidate #2
-                                        (repeat up to 3 times)
+```mermaid
+sequenceDiagram
+    participant Rider
+    participant DispatchSvc as Dispatch Service
+    participant Redis as Redis GEOSET
+    participant ETASvc as ETA Service
+    participant TripSvc as Trip Service (PG)
+    participant DriverSvc as Driver Dispatch Service
+    participant Driver
 
+    Rider->>DispatchSvc: POST /rides {origin, destination}
+    DispatchSvc->>Redis: GEORADIUS geo:nyc lat lon 3km
+    Redis-->>DispatchSvc: [driver_1, driver_2, driver_3, ...]
+    DispatchSvc->>ETASvc: calcETA(drivers[], origin)
+    ETASvc-->>DispatchSvc: {driver_1: 2min, driver_2: 4min, ...}
+    Note over DispatchSvc: score = f(ETA, rating, heading), pick top-3
+    DispatchSvc->>DriverSvc: sendOffer(driver_1, trip_details)
+    DriverSvc->>Driver: WebSocket push: trip offer
+    Note over Driver: 15-second accept timer starts
+    Driver->>DriverSvc: accept
+    DriverSvc->>TripSvc: createTrip(rider, driver_1)
+    TripSvc->>TripSvc: BEGIN, INSERT trip, UPDATE driver=BUSY, COMMIT
+    TripSvc-->>DispatchSvc: trip_id created
+    DispatchSvc-->>Rider: 202 {trip_id, status:MATCHED, eta:2min}
+```
 
-TRIP STATE MACHINE:
-IDLE ──[ride request]──► REQUESTED ──[driver accepts]──► DRIVER_ASSIGNED
-                                    ──[no drivers/timeout]──► FAILED
+## State Diagram: Trip Lifecycle
 
-DRIVER_ASSIGNED ──[driver arrives]──► DRIVER_AT_PICKUP
-               ──[rider cancels]──► CANCELLED
+```mermaid
+stateDiagram-v2
+    [*] --> REQUESTED: rider submits request
+    REQUESTED --> MATCHED: driver accepts
+    REQUESTED --> CANCELLED: rider cancels
+    REQUESTED --> FAILED: timeout / no drivers
 
-DRIVER_AT_PICKUP ──[rider boards]──► IN_PROGRESS
+    MATCHED --> DRIVER_ARRIVED: driver at pickup
+    MATCHED --> CANCELLED: rider or driver cancels
 
-IN_PROGRESS ──[trip ends]──► CALCULATING_FARE ──[fare confirmed]──► COMPLETED
-            ──[rider cancels mid-trip]──► DISPUTED
+    DRIVER_ARRIVED --> IN_TRIP: rider boards
+    DRIVER_ARRIVED --> CANCELLED: rider no-show / cancels
+
+    IN_TRIP --> COMPLETED: trip ends + fare confirmed
+    IN_TRIP --> DISPUTED: rider cancels mid-trip
+
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    FAILED --> [*]
+    DISPUTED --> [*]
 ```
 
 ## Capacity Math
