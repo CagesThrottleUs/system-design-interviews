@@ -21,47 +21,42 @@ Read after your attempt. If you haven't attempted it yet, close this file.
 
 ## Architecture Diagram
 
-```
-WRITE PATH (creates, ~93 QPS avg)
-─────────────────────────────────
+```mermaid
+flowchart LR
+    Client([Client])
+    LB[Load Balancer]
+    API[API Server\nstateless]
+    IDGen[ID Generator\nSnowflake/INCR]
+    B62{{Base62 Encode}}
+    URLDB[(URL DB\nDynamoDB)]
+    Redis[(Redis\nCache)]
+    Kafka[[Kafka]]
+    Analytics[(Analytics Store\nClickHouse)]
 
-  Client
-    │
-    ▼
-┌─────────────┐     ┌──────────────────┐     ┌──────────────┐
-│  API Server │────▶│  ID Generator    │────▶│  URL DB      │
-│  (stateless)│     │  (Snowflake/INCR)│     │  (DynamoDB)  │
-└─────────────┘     └──────────────────┘     └──────────────┘
-                           │
-                    Base62 encode
-                    (number → shortCode)
+    subgraph "Write Path"
+        Client -->|create link| LB
+        LB -->|route| API
+        API -->|get next ID| IDGen
+        IDGen --> B62
+        B62 -->|shortCode + longURL| URLDB
+    end
 
+    subgraph "Read Path"
+        Client2([Visitor]) -->|GET /shortCode| LB2[Load Balancer]
+        LB2 --> API2[API Server]
+        API2 -->|lookup| CacheCheck{{Cache\nHit?}}
+        CacheCheck -->|hit| Redis
+        Redis -->|longURL| Redirect302([302 Redirect])
+        CacheCheck -->|miss| URLDB2[(URL DB\nDynamoDB)]
+        URLDB2 -->|longURL + populate cache| Redis
+        URLDB2 -->|longURL| Redirect302
+    end
 
-READ PATH (redirects, ~3,858 QPS avg, up to ~100K peak)
-────────────────────────────────────────────────────────
-
-  Visitor clicks short link
-    │
-    ▼
-┌─────────────┐   cache hit  ┌────────────┐
-│  API Server │─────────────▶│  Redis     │──── 302 redirect
-│  (stateless)│              │  Cache     │
-└─────────────┘              └────────────┘
-       │ cache miss                 
-       ▼                           
-┌─────────────┐                    
-│  URL DB     │──── load + backfill cache ──── 302 redirect
-│  (DynamoDB) │                    
-└─────────────┘
-       │ (async, fire-and-forget)
-       ▼
-┌─────────────┐     ┌────────────┐     ┌──────────────────┐
-│  Click Event│────▶│  Kafka     │────▶│  Analytics Store │
-│  (enqueued) │     │  (async)   │     │  (ClickHouse)    │
-└─────────────┘     └────────────┘     └──────────────────┘
-                                               │
-                                        Analytics API
-                                        (read aggregates)
+    subgraph "Analytics Path"
+        API2 -.->|async fire-and-forget| Kafka
+        Kafka -.->|consume| AnalyticsConsumer[Analytics Consumer]
+        AnalyticsConsumer -.-> Analytics
+    end
 ```
 
 ---
