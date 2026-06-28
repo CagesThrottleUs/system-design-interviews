@@ -22,64 +22,51 @@ Celebrity Post Store        Recent posts from high-follower accounts; pulled at 
 
 ## Architecture Diagram
 
-```
-WRITE PATH
-──────────────────────────────────────────────────────────────────────
+```mermaid
+flowchart LR
+    User([User])
+    PostSvc[Post Service]
+    PostStore[(Post Store\nPostgres / Cassandra)]
+    MediaSvc[Media Service]
+    S3[(S3 Object Store)]
+    CDN([CDN])
+    Kafka[[Kafka\npost_created topic]]
+    FanoutWorker[Fan-out Workers\nconsumer group]
+    GraphDB[(Follow Graph Store\ngraph DB / Redis)]
+    CelebCheck{{Celebrity?\n> 10K followers}}
+    TimelineCache[(Timeline Cache\nRedis Sorted Set\ntimeline: user_id)]
+    CelebCache[(Celebrity Post Cache\nRedis List\nceleb_posts: celeb_id)]
 
- Client
-   │
-   ▼
- Post Service  ──── stores post ────▶  Post Store (Postgres / Cassandra)
-   │
-   │ publishes post_created event
-   ▼
- Kafka (post_created topic)
-   │
-   ├──[regular user post]──▶ Fan-out Workers
-   │                              │
-   │                              │  reads follow graph
-   │                              ▼
-   │                        Follow Graph Store (graph DB / Redis)
-   │                              │
-   │                              │  writes post_id into each follower's timeline
-   │                              ▼
-   │                        Timeline Cache (Redis Sorted Set per user)
-   │                        key: timeline:{user_id}
-   │                        score: unix_timestamp
-   │                        member: post_id
-   │
-   └──[celebrity post]────▶ Celebrity Post Cache (Redis list per celebrity)
-                            key: celebrity_posts:{user_id}
-                            (NO fan-out; pulled at read time)
+    subgraph "Write Path"
+        User -->|POST /posts| PostSvc
+        PostSvc -->|store post| PostStore
+        PostSvc -->|media upload| MediaSvc
+        MediaSvc --> S3
+        S3 --> CDN
+        PostSvc -->|publish post_created| Kafka
+        Kafka --> FanoutWorker
+        FanoutWorker -->|get followers| GraphDB
+        FanoutWorker --> CelebCheck
+        CelebCheck -->|regular user\nwrite to each follower| TimelineCache
+        CelebCheck -->|celebrity\nno fan-out| CelebCache
+    end
 
+    Viewer([Viewer])
+    FeedSvc[Feed Service]
+    Merge{{Merge +\nSort + Paginate}}
+    PostCache[(Post Cache\nRedis read-through)]
+    FeedOut([Hydrated\nFeed Response])
 
-READ PATH
-──────────────────────────────────────────────────────────────────────
-
- Client  GET /feed?cursor=...
-   │
-   ▼
- Feed Service
-   │
-   ├──[1] Fetch precomputed timeline]
-   │       ZREVRANGEBYSCORE timeline:{user_id} ...
-   │       → returns list of post_ids (for regular users they follow)
-   │
-   ├──[2] Fetch followed celebrities]
-   │       For each celebrity C the user follows:
-   │         LRANGE celebrity_posts:{C} 0 49
-   │       → returns recent post_ids from each celebrity
-   │
-   ├──[3] MERGE + SORT]
-   │       Merge precomputed timeline + celebrity post lists
-   │       Sort combined list by timestamp (in-memory, N is small)
-   │       Paginate to 20 posts
-   │
-   ├──[4] Hydrate post metadata]
-   │       MGET post:{post_id} for all 20 post IDs
-   │       (Redis or Memcached read-through cache over Post Store)
-   │
-   └──▶ Return hydrated feed to client
+    subgraph "Read Path"
+        Viewer -->|GET /feed?cursor=...| FeedSvc
+        FeedSvc -->|ZREVRANGEBYSCORE| TimelineCache
+        FeedSvc -->|LRANGE per celebrity| CelebCache
+        TimelineCache -->|post_ids regular| Merge
+        CelebCache -->|post_ids celebrity| Merge
+        Merge -->|top 20 post_ids| PostCache
+        PostCache -->|cache miss| PostStore
+        PostCache -->|hydrated posts| FeedOut
+    end
 ```
 
 ---
