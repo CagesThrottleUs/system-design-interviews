@@ -21,87 +21,119 @@ Read after your attempt. If you haven't attempted yet, close this file.
 
 ## Architecture Diagram
 
+```mermaid
+flowchart TD
+    Buyer([Buyer])
+    PSP([PSP\nStripe / Adyen])
+    Bank([Bank\nACH / Wire])
+    BankFile([Bank Settlement File\nCSV / SWIFT MT940])
+
+    subgraph Ingress["Payment Ingress"]
+        API[Payment API\nstateless]
+        IdemCheck{Idempotency\nkey exists?}
+        IdemDB[(Idempotency Store\nPostgreSQL)]
+    end
+
+    subgraph Orchestration["SAGA Orchestrator (Temporal)"]
+        Authorize[Step 1: PSP Authorize]
+        Capture[Step 2: PSP Capture]
+        Ledger[Step 3: Write Ledger\ndouble-entry atomic]
+        PayoutQ[Step 4: Enqueue Payout]
+    end
+
+    subgraph TimeoutPath["PSP Timeout Path"]
+        PollPSP[Poll PSP Status API\nwait 30-60s + retry\nsame idempotency key]
+    end
+
+    subgraph Persistence["Persistence"]
+        LedgerDB[(Ledger DB\nPostgreSQL append-only)]
+        Outbox[(Outbox Table\nsame DB as payment)]
+        KafkaBus[Kafka\nvia CDC]
+    end
+
+    subgraph Downstream["Downstream Consumers"]
+        NotifSvc[Notification Service]
+        InvSvc[Inventory Service]
+        ReconcileSvc[Reconciliation Service]
+        PayoutSvc[Payout Service\nbatch T+1]
+    end
+
+    Buyer -->|POST /payments\nIdempotency-Key header| API
+    API -->|lookup key| IdemDB
+    IdemDB --> IdemCheck
+    IdemCheck -->|key exists: return cached result| Buyer
+    IdemCheck -->|key new: create PENDING record| Authorize
+    Authorize -->|card_token + amount\nidem-key derived| PSP
+    PSP -->|auth_id| Capture
+    PSP -->|TIMEOUT| PollPSP
+    PollPSP -->|retry same idem-key| PSP
+    PollPSP -->|resolved result| Capture
+    PSP -->|DECLINED| API
+    Capture -->|capture confirmed| Ledger
+    Ledger -->|DR buyer CR seller CR platform\natomic INSERT| LedgerDB
+    Ledger -->|write event row| Outbox
+    Outbox -->|CDC poller| KafkaBus
+    KafkaBus --> NotifSvc
+    KafkaBus --> InvSvc
+    KafkaBus --> ReconcileSvc
+    PayoutQ -->|net amount| PayoutSvc
+    PayoutSvc -->|ACH / wire| Bank
+    Ledger --> PayoutQ
+    LedgerDB -.->|nightly compare| ReconcileSvc
+    BankFile -.->|settlement file| ReconcileSvc
 ```
-PAYMENT FLOW (the happy path and failure paths)
-──────────────────────────────────────────────────────────────────────
 
-  Buyer
-    │  POST /payments { amount, currency, card_token, idempotency_key }
-    ▼
-┌──────────────────┐
-│  Payment API     │
-│  (stateless)     │
-└──────────────────┘
-    │
-    │  1. Check idempotency key (upsert into idempotency table)
-    ▼
-┌──────────────────┐
-│  Idempotency DB  │  ──── key already exists? Return cached response.
-│  (PostgreSQL)    │  ──── key new? Continue.
-└──────────────────┘
-    │
-    │  2. Create payment record (status: PENDING)
-    │  3. Publish to payment queue (via outbox)
-    ▼
-┌──────────────────────────────────────────────────────┐
-│  Payment Orchestrator (Temporal Workflow)             │
-│                                                       │
-│  Step 1: PSP Authorize                                │
-│    → call PSP Adapter with card_token + amount        │
-│    → PSP returns auth_id (or declines)                │
-│    → on timeout: query PSP status API (key insight!)  │
-│                                                       │
-│  Step 2: PSP Capture                                  │
-│    → converts authorization to actual charge          │
-│                                                       │
-│  Step 3: Write Ledger (double-entry)                  │
-│    → INSERT buyer debit + seller credit + platform   │
-│      commission credit (single atomic transaction)    │
-│                                                       │
-│  Step 4: Enqueue Seller Payout                        │
-│    → add seller's net amount to payout queue          │
-│                                                       │
-│  Compensation (on any step failure):                  │
-│  Step 1 fail → no money moved, return DECLINED        │
-│  Step 2 fail → void the authorization                 │
-│  Step 3 fail → reverse the capture (PSP refund API)  │
-│  Step 4 fail → retry payout queue enqueue             │
-└──────────────────────────────────────────────────────┘
-    │                              │
-    ▼                              ▼
-┌──────────────┐          ┌──────────────────┐
-│  Ledger DB   │          │  Payout Queue    │
-│  (PG append) │          │  (Kafka/SQS)     │
-└──────────────┘          └──────────────────┘
-                                   │
-                                   ▼
-                          ┌──────────────────┐
-                          │  Payout Service  │
-                          │  (batch, T+1)    │
-                          └──────────────────┘
-                                   │
-                                   ▼
-                          ┌──────────────────┐
-                          │  Bank Transfer   │
-                          │  (ACH/Wire)      │
-                          └──────────────────┘
+## Sequence Diagram: Idempotency Key Flow
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant PS as Payment Service
+    participant R as Redis (Idempotency)
+    participant PSP as PSP (Stripe)
+    participant BG as Background Poller
 
-RECONCILIATION PATH (async, runs nightly)
-──────────────────────────────────────────
+    C->>PS: POST /payments\nIdempotency-Key: abc123
+    PS->>R: GET abc123
+    R-->>PS: (not found)
+    PS->>R: SET abc123 = PENDING
+    PS->>PSP: POST /charge\nidem-key: abc123-psp
+    Note over PSP: PSP times out (5s)
+    PSP-->>PS: TIMEOUT
 
-  Bank Settlement File (CSV/SWIFT MT940)
-    │
-    ▼
-┌────────────────────────┐     ┌──────────────────────┐
-│  Reconciliation Job    │────▶│  Internal Ledger DB  │
-│  (Spark batch)         │     └──────────────────────┘
-└────────────────────────┘
-    │
-    ├── Match: PSP transaction ID in file ↔ ledger entry
-    ├── Unmatched in bank but not ledger → "phantom charge" → alert ops
-    ├── Unmatched in ledger but not bank → "missing settlement" → alert ops
-    └── Amount mismatch → alert ops with diff
+    PS-->>C: 202 Accepted\n(payment in progress)
+
+    C->>PS: POST /payments (retry)\nIdempotency-Key: abc123
+    PS->>R: GET abc123
+    R-->>PS: abc123 = PENDING
+    PS-->>C: 202 Accepted\n(still in progress)
+
+    BG->>PSP: GET /charges?idem-key=abc123-psp
+    PSP-->>BG: success — charge_id captured
+    BG->>PS: notify success
+    PS->>R: SET abc123 = SUCCESS + response
+    PS->>PS: write ledger\npublish outbox event
+
+    C->>PS: POST /payments (retry)\nIdempotency-Key: abc123
+    PS->>R: GET abc123
+    R-->>PS: abc123 = SUCCESS + cached response
+    PS-->>C: 200 OK (cached SUCCESS result)
+```
+
+## State Diagram: Payment Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> INITIATED: client submits payment
+    INITIATED --> PENDING: PSP authorize called
+    PENDING --> PROCESSING: PSP auth_id received
+    PENDING --> FAILED: PSP timeout\n(no resolution within TTL)
+    PROCESSING --> SETTLED: PSP capture + ledger written
+    PROCESSING --> FAILED: PSP declined or capture error\n(compensating: void auth)
+    SETTLED --> REFUNDED: refund request\n(compensating: PSP refund API\n+ reverse ledger entries)
+    FAILED --> [*]
+    SETTLED --> [*]
+    REFUNDED --> [*]
 ```
 
 ---
