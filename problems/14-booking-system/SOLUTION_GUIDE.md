@@ -21,88 +21,122 @@ Read after your attempt. If you haven't attempted yet, close this file.
 
 ## Architecture Diagram
 
+```mermaid
+flowchart TD
+    User([User / Traveler])
+
+    subgraph SearchPath["Search Path — eventual consistency OK"]
+        SearchSvc[Search Service\nstateless]
+        RedisCache[(Redis Cache\ninventory snapshot)]
+        InvDBRead[(Inventory DB\nread replica\nPostgreSQL)]
+    end
+
+    subgraph HoldPhase["Phase 1: Hold — Redis fast lock"]
+        HoldSvc[Booking Service\nHold Step]
+        RedisSNX[(Redis SETNX\nhold key + TTL 300s)]
+        InvReserve[(Inventory DB\nUPDATE reserved +1\nWHERE available >= 1)]
+        SoldOut[Return sold out\nto user]
+    end
+
+    subgraph PaymentPhase["Phase 2: Payment"]
+        PSPCall[PSP Charge\nwith idempotency key]
+        PSPDecline[Release hold\nreturn PAYMENT_FAILED]
+    end
+
+    subgraph ConfirmPhase["Phase 3: Confirm — source of truth"]
+        BookingDB[(Booking DB\nwrite confirmed booking\nPostgreSQL)]
+        ReleaseHold[Delete Redis hold key]
+        NotifEvent[Publish BOOKING_CONFIRMED\nvia outbox]
+    end
+
+    subgraph ExpiryPath["Hold Expiry — async cleanup"]
+        ExpiryWorker[Hold Expiry Worker\nRedis keyspace events]
+        DecrReserved[Decrement inventory.reserved\nitem back to available pool]
+    end
+
+    NotifSvc[Notification Service\nemail / push]
+
+    User -->|search available rooms| SearchSvc
+    SearchSvc -->|cache hit| RedisCache
+    SearchSvc -->|cache miss| InvDBRead
+    RedisCache -->|results| User
+    InvDBRead -->|results| User
+
+    User -->|select item| HoldSvc
+    HoldSvc -->|SETNX hold key TTL 300s| RedisSNX
+    RedisSNX -->|SETNX won| InvReserve
+    InvReserve -->|0 rows updated: race lost| SoldOut
+    SoldOut -->|release Redis hold| RedisSNX
+    InvReserve -->|hold confirmed| PSPCall
+
+    PSPCall -->|PSP declined| PSPDecline
+    PSPDecline -->|release hold| RedisSNX
+    PSPCall -->|PSP success| BookingDB
+    BookingDB -->|increment confirmed| InvReserve
+    BookingDB --> ReleaseHold
+    BookingDB --> NotifEvent
+    NotifEvent --> NotifSvc
+    NotifSvc -->|email + push| User
+
+    RedisSNX -.->|TTL expires if user abandons| ExpiryWorker
+    ExpiryWorker --> DecrReserved
+    DecrReserved -.->|item available again| RedisCache
 ```
-SEARCH PATH (high read volume, eventual consistency OK)
-───────────────────────────────────────────────────────
 
-  Traveler: "Show me available rooms in Paris, Jan 15-18"
-    │
-    ▼
-┌─────────────────┐
-│  Search Service │  ──▶  Redis Cache  ──▶  Return available room types
-│  (stateless)    │       (inventory   ──▶  with prices
-└─────────────────┘        snapshot)
-    │ (cache miss or stale)
-    ▼
-┌─────────────────┐
-│  Inventory DB   │  PostgreSQL (room_type_inventory table)
-│  (PostgreSQL)   │  Returns sum(total_inventory - total_reserved)
-└─────────────────┘
+## Sequence Diagram: Hold-Payment-Confirm Flow
 
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant BS as Booking Service
+    participant R as Redis (Hold)
+    participant DB as Inventory DB
+    participant PSP as PSP
 
-BOOKING PATH (strong consistency required)
-──────────────────────────────────────────
+    U->>BS: select item (room/flight)
+    BS->>R: SETNX hold_{item}_{user} TTL=300s
+    R-->>BS: OK (hold acquired)
+    BS->>DB: UPDATE inventory SET reserved=reserved+1\nWHERE (total-reserved) >= 1
+    DB-->>BS: 1 row updated
 
-  Traveler: "Book room 101 at Hotel X, Jan 15-18"
-    │
-    ▼
-STEP 1: CREATE HOLD (atomic soft-lock)
-┌────────────────────────────────────────────────────┐
-│  Hold Service                                       │
-│                                                     │
-│  Redis Lua script (atomic):                         │
-│  1. Check: does hold exist for this room+dates?     │
-│  2. If yes → return CONFLICT (someone else holds)  │
-│  3. If no  → SETNX hold:{hotel_id}:{room_id}:{date} │
-│             value={user_id}, TTL=300 seconds        │
-└────────────────────────────────────────────────────┘
-    │ hold confirmed (302-second reservation window)
-    ▼
-  Traveler enters payment details
-    │
-    ▼
-STEP 2: CHARGE PAYMENT (with idempotency key)
-┌────────────────────────────────────────────────────┐
-│  Payment Service                                    │
-│  POST /charge { amount, card_token,                 │
-│                 idempotency_key: booking_id }        │
-│                                                     │
-│  On timeout: retry with SAME idempotency_key        │
-│  On decline: release hold → return PAYMENT_FAILED   │
-└────────────────────────────────────────────────────┘
-    │ charge confirmed
-    ▼
-STEP 3: COMMIT INVENTORY (update DB atomically)
-┌────────────────────────────────────────────────────┐
-│  Inventory Service (PostgreSQL)                     │
-│                                                     │
-│  BEGIN;                                             │
-│  UPDATE room_type_inventory                         │
-│    SET total_reserved = total_reserved + 1          │
-│    WHERE hotel_id = ? AND room_type = ?             │
-│      AND date = ?                                   │
-│      AND (total_inventory - total_reserved) >= 1;  │  -- prevent overbooking
-│  IF rows_affected = 0 THEN ROLLBACK + refund;       │
-│  INSERT INTO bookings (...) VALUES (...);            │
-│  COMMIT;                                            │
-└────────────────────────────────────────────────────┘
-    │ booking record created
-    ▼
-STEP 4: RELEASE HOLD + NOTIFY
-┌────────────────────────────────────────────────────┐
-│  Delete Redis hold key (booking confirmed)          │
-│  Publish BOOKING_CONFIRMED event (outbox)           │
-│    → Notification Service (email/push)              │
-│    → Hotel management system (property notification)│
-└────────────────────────────────────────────────────┘
+    Note over DB: If 0 rows updated:\nBS deletes Redis hold → returns "sold out" to user
 
+    U->>BS: complete payment form
+    BS->>PSP: charge card\nidempotency_key=booking_id
+    PSP-->>BS: payment declined
+    BS->>R: DEL hold key
+    BS->>DB: decrement reserved
+    BS-->>U: PAYMENT_FAILED
 
-HOLD EXPIRY (background)
-─────────────────────────
-  Redis TTL fires on hold:{...} key
-    → Hold Expiry Worker detects key deletion via Redis keyspace events
-    → Decrements total_reserved in Inventory DB (if booking never committed)
-    → Inventory returns to available pool
+    Note over BS: Happy path continues below
+
+    PSP-->>BS: payment success
+    BS->>DB: INSERT confirmed booking\nincrement inventory.confirmed
+    DB-->>BS: booking written
+    BS->>R: DEL hold key (booking confirmed)
+    BS-->>U: CONFIRMED + booking_id
+```
+
+## State Diagram: Booking Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> HOLD: user selects item\nRedis SETNX acquired
+
+    HOLD --> PAYMENT_PROCESSING: user submits payment
+    HOLD --> HOLD_EXPIRED: Redis TTL fires\n(user abandoned checkout)
+
+    HOLD_EXPIRED --> [*]: inventory.reserved decremented\nitem back to available pool
+
+    PAYMENT_PROCESSING --> CONFIRMED: PSP success\n+ DB booking written
+    PAYMENT_PROCESSING --> PAYMENT_FAILED: PSP declined\nor DB error + refund issued
+
+    PAYMENT_FAILED --> [*]: hold released\ninventory.reserved decremented
+
+    CONFIRMED --> CANCELLED: user cancels\nor overbooking detected
+    CANCELLED --> [*]: inventory.confirmed decremented\nPSP refund triggered
+
+    CONFIRMED --> [*]
 ```
 
 ---
