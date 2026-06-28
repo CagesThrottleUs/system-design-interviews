@@ -17,47 +17,30 @@
 
 ## Architecture Diagram
 
-```
-                        ┌─────────────────────────────────────────────┐
-                        │              Client Request                  │
-                        └──────────────────┬──────────────────────────┘
-                                           │
-                                           ▼
-                        ┌─────────────────────────────────────────────┐
-                        │          API Gateway / Load Balancer        │
-                        │   (TLS termination, auth header extraction) │
-                        └──────────────────┬──────────────────────────┘
-                                           │
-                                           ▼
-                        ┌─────────────────────────────────────────────┐
-                        │         Rate Limiter Middleware              │
-                        │  ┌──────────────────────────────────────┐   │
-                        │  │  1. Extract identity (user_id / IP)  │   │
-                        │  │  2. Look up rules (local memory)     │   │
-                        │  │  3. Build Redis key                  │   │
-                        │  │  4. ATOMIC: INCR + check limit       │   │
-                        │  │  5a. Pass through → backend          │   │
-                        │  │  5b. Reject → HTTP 429 + headers     │   │
-                        │  └──────────────────────────────────────┘   │
-                        └──────┬─────────────────────┬────────────────┘
-                               │                     │
-                    ┌──────────▼──────┐   ┌──────────▼──────────────┐
-                    │  Redis Cluster  │   │    Rules Store           │
-                    │  (counters)     │   │  PostgreSQL + in-memory  │
-                    │  8–80 nodes     │   │  cache (refreshed 30s)   │
-                    │  INCR, TTL      │   │                          │
-                    └─────────────────┘   └──────────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  Metrics Pipeline   │
-                    │  Prometheus +       │
-                    │  Grafana dashboards │
-                    └─────────────────────┘
-                               │
-                    ┌──────────▼──────┐
-                    │  Backend Services│
-                    │  (protected)     │
-                    └─────────────────┘
+```mermaid
+flowchart TD
+    Client([Client])
+    GW[API Gateway / Load Balancer\nTLS termination · auth header extraction]
+    RL[Rate Limiter Middleware\nextract user_id → build Redis key]
+    LimitCheck{{Under\nLimit?}}
+    Redis[(Redis Cluster\n8–80 nodes · INCR + TTL)]
+    Rules[(Rules Store\nPostgreSQL + in-memory cache\nrefreshed every 30s)]
+    Backend[Backend Services\nprotected]
+    Reject([HTTP 429\nX-RateLimit-Remaining: 0\nRetry-After: N])
+    Metrics[Metrics Pipeline\nPrometheus + Grafana]
+
+    Client -->|request| GW
+    GW -->|authenticated request| RL
+    RL -->|ATOMIC INCR + check| Redis
+    RL -->|lookup rules| Rules
+    Redis --> LimitCheck
+    LimitCheck -->|allowed| Backend
+    LimitCheck -->|exceeded| Reject
+
+    Redis -.->|counter metrics| Metrics
+
+    style Reject fill:#c0392b,color:#fff
+    style LimitCheck fill:#f39c12,color:#fff
 ```
 
 **Key insight on placement:** The rate limiter runs *before* the backend service but *after* auth. Running it before auth means we can only rate-limit by IP (coarse, easy to spoof). Running it after auth gives us the user ID — we can enforce per-tier limits accurately. The tradeoff: auth itself consumes latency budget. In practice, most systems extract a signed JWT at the gateway, validate it in microseconds, and pass `user_id` in an internal header so the rate limiter never hits a database for identity.
