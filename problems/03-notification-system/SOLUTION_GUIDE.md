@@ -22,70 +22,70 @@
 
 ---
 
-## ASCII Architecture Diagram
+## Architecture Diagram
 
-```
-  Producer Services
-  (order-svc, feed-svc,
-   marketing-svc, payment-svc)
-         |
-         | POST /notifications  (async enqueue)
-         v
-  +--------------------+
-  |  Notification API  |  <-- validates schema, deduplication check,
-  |  (REST/gRPC)       |      writes notification record (status=QUEUED)
-  +--------------------+
-         |
-         | publish to topic: notifications.raw
-         v
-  +============================+
-  ||   Kafka: notifications   ||   <-- priority partitioned:
-  ||   .raw (input topic)     ||       partition 0-3  = TRANSACTIONAL
-  +============================+       partition 4-7  = MARKETING
-         |
-         v
-  +--------------------+
-  |   Fan-out Worker   |  <-- reads user preferences from Redis cache
-  |   (consumer group) |      checks DND window
-  |                    |      resolves device tokens from registry
-  +--------------------+
-         |
-    _____|_______________________________________
-   |             |                |             |
-   v             v                v             v
-[Kafka]       [Kafka]         [Kafka]        [Kafka]
-chan.push    chan.email       chan.sms      chan.inapp
-   |             |                |
-   v             v                v
-+--------+  +----------+  +----------+
-| Push   |  | Email    |  | SMS      |
-| Worker |  | Worker   |  | Worker   |
-+--------+  +----------+  +----------+
-   |    \        |              |
-   |     \       v              v
-   |  [APNs]  [SES /        [Twilio /
-   |           SendGrid]     SNS]
-   v
- [FCM]
+```mermaid
+flowchart TD
+    Producers([Producer Services\norder-svc · feed-svc · marketing-svc])
+    API[Notification API\nREST/gRPC · dedup · status=QUEUED]
+    PrefCheck{{User Opted\nIn?}}
+    PrefDB[(Preferences DB\nPostgreSQL + Redis cache)]
+    KafkaRaw[[Kafka: notifications.raw\npartitions 0-3 TRANSACTIONAL\npartitions 4-7 MARKETING]]
+    Fanout[Fan-out Worker\nconsumer group · resolves device tokens]
+    DevReg[(Device Registry\nCassandra)]
 
-Each Channel Worker:
-  - Retry loop with exponential backoff (max 5 attempts)
-  - On success: update delivery_log status=SENT
-  - On hard failure: publish to DLQ topic
-  - Reads APNs/FCM feedback → Token Rotation Handler
+    KafkaPush[[Kafka: chan.push]]
+    KafkaEmail[[Kafka: chan.email]]
+    KafkaSMS[[Kafka: chan.sms]]
 
-  +---------------------+
-  |  Delivery Log       |  <-- Cassandra, partition key = notification_id
-  |  (Cassandra)        |      status updates from all workers
-  +---------------------+
+    PushWorker[Push Worker\nretry + exponential backoff]
+    EmailWorker[Email Worker\nretry + exponential backoff]
+    SMSWorker[SMS Worker\nretry + exponential backoff]
 
-  +---------------------+
-  |  Dead Letter Queue  |  <-- Ops dashboard reads DLQ depth
-  |  (Kafka DLQ topic)  |      alert if depth > threshold
-  +---------------------+
-         |
-         v
-  [Operator Console: replay or discard]
+    APNs([APNs\niOS])
+    FCM([FCM\nAndroid])
+    SES([SES / SendGrid\nEmail])
+    Twilio([Twilio\nSMS])
+
+    DeliveryLog[(Delivery Log\nCassandra)]
+    DLQ[[Dead Letter Queue\nKafka DLQ topic]]
+    TokenRotation[Token Rotation Handler\nmarks stale tokens INVALID]
+
+    Producers -->|POST /notifications| API
+    API --> PrefCheck
+    PrefCheck -->|lookup| PrefDB
+    PrefCheck -->|opted out — drop| Drop([Dropped])
+    PrefCheck -->|opted in| KafkaRaw
+
+    KafkaRaw --> Fanout
+    Fanout -->|resolve tokens| DevReg
+    Fanout -->|publish| KafkaPush
+    Fanout -->|publish| KafkaEmail
+    Fanout -->|publish| KafkaSMS
+
+    KafkaPush --> PushWorker
+    KafkaEmail --> EmailWorker
+    KafkaSMS --> SMSWorker
+
+    PushWorker -->|HTTP/2| APNs
+    PushWorker -->|HTTP| FCM
+    EmailWorker --> SES
+    SMSWorker --> Twilio
+
+    PushWorker -->|status update| DeliveryLog
+    EmailWorker -->|status update| DeliveryLog
+    SMSWorker -->|status update| DeliveryLog
+
+    PushWorker -.->|max retries exceeded| DLQ
+    EmailWorker -.->|max retries exceeded| DLQ
+    SMSWorker -.->|max retries exceeded| DLQ
+
+    APNs -.->|410 Unregistered / new token| TokenRotation
+    FCM -.->|InvalidRegistration / canonical ID| TokenRotation
+    TokenRotation -.->|update| DevReg
+
+    style Drop fill:#7f8c8d,color:#fff
+    style DLQ fill:#c0392b,color:#fff
 ```
 
 ---
