@@ -30,77 +30,59 @@ NODE ADDITION:
     Only ~1/N of keys move. Other keys unaffected.
 ```
 
-## Architecture Diagram (ASCII)
-```
-CONSISTENT HASH RING (simplified, 3 nodes):
+## Architecture Diagram
 
-         Node A (0°)
-        /
-Ring ──/── Node B (120°) ────── Node C (240°) ──── back to Node A
-      
-Key "user:123" hashes to 80° → assigned to Node B (next clockwise)
-Key "session:abc" hashes to 200° → assigned to Node C
-Key "config:x" hashes to 350° → assigned to Node A
+```mermaid
+flowchart TD
+    subgraph ReadPath["Cache-Aside Read Path"]
+        APP([Application\nServer])
+        CCL["Cache Client\nLibrary\n(embedded in app)\nholds ring topology"]
+        HASH{{"hash(key)\n→ find node\non ring"}}
+        CN_HIT["Cache Node\n(responsible\nfor key range)"]
+        DB[("Origin DB\nPostgreSQL /\nMySQL")]
+        POPULATE["Cache Client\npopulates:\nSET key value TTL"]
 
+        APP -->|GET key| CCL
+        CCL -->|compute| HASH
+        HASH -->|route to\nprimary node| CN_HIT
+        CN_HIT -->|cache HIT\nO1 hashtable\nupdate LRU| APP
+        CN_HIT -->|cache MISS\nreturn null| CCL
+        CCL -->|miss fallback| DB
+        DB -->|value| POPULATE
+        POPULATE -->|SET key| CN_HIT
+        POPULATE -->|return value| APP
+    end
 
-VIRTUAL NODES (v-nodes) for load balance:
-Without v-nodes: each physical node owns 1 arc of the ring.
-With v-nodes (150 per node): each physical node owns 150 small arcs.
+    subgraph WritePath["Write-Through Write Path"]
+        APP2([Application\nServer])
+        CCL2["Cache Client\nLibrary"]
+        CN_W["Cache Node\n(primary)"]
+        DB2[("Origin DB")]
+        REP["Replica Node\n(next on ring)"]
 
-Physical: Node A owns 0°-120°. All keys in that range go to A.
-V-nodes:  Node A owns {3°, 17°, 45°, 89°, 112°, ...} — 150 small arcs.
-          Load is distributed more uniformly.
-          When Node A fails: its 150 arcs are redistributed to many other nodes
-          (not just one successor), spreading the failover load.
+        APP2 -->|SET key value| CCL2
+        CCL2 -->|write to\ncache node| CN_W
+        CCL2 -->|write to DB, sync| DB2
+        DB2 -->|ack| CCL2
+        CN_W -->|async replicate| REP
+        CCL2 -->|ack to app| APP2
+    end
 
+    subgraph ThunderingHerd["Thundering Herd: SETNX Lock Pattern"]
+        MISS2{{"Cache MISS\non hot key"}}
+        LOCK["SETNX\nlock:{key}\nTTL=5s"]
+        WIN{{"lock\nacquired?"}}
+        FETCH["Query\nOrigin DB"]
+        SET2["SET key value\nDELETE lock"]
+        WAIT["sleep 50ms\nretry GET"]
 
-WRITE PATH:
-App Server
-  │
-  ├─ Cache Client computes hash(key)
-  ├─ Locates primary node on ring: Node B
-  ├─ Sends SET to Node B (TCP connection from pool)
-  │
-  ▼
-Node B
-  ├─ Store in hash table: key → {value, ttl, lru_node_ptr}
-  ├─ Update LRU doubly-linked list: move this key to head
-  ├─ Check memory usage:
-  │    IF > 80% capacity: run LRU eviction (remove tail of linked list)
-  ├─ Replicate to Replica Node C (async)
-  └─ Return OK to client
-
-
-READ PATH:
-App Server
-  │
-  ├─ Cache Client: hash("user:123") → Node B
-  ├─ GET from Node B
-  │
-  ▼
-Node B
-  ├─ Hash table lookup: O(1)
-  ├─ HIT: update LRU position; return value
-  └─ MISS: return null → app server queries database → SET on Node B
-
-
-LRU EVICTION (within a single node):
-Data structure:
-  HashTable: key → {value, ttl, *ListNode}
-  DoublyLinkedList: [MRU head] ↔ ... ↔ [LRU tail]
-
-GET(key): 
-  1. HashTable lookup → ListNode
-  2. Move ListNode to head of linked list
-  3. Return value
-
-SET(key, value):
-  1. If key exists: update value, move to head
-  2. If new key: insert at head
-  3. IF memory > threshold: remove tail, delete from HashTable
-
-Time complexity: O(1) for GET, SET, and eviction decision.
-Space: O(N) for N keys — two pointers per node (16 bytes) + hashmap entry.
+        MISS2 --> LOCK
+        LOCK --> WIN
+        WIN -->|yes — lock winner| FETCH
+        FETCH --> SET2
+        WIN -->|no — lock loser| WAIT
+        WAIT -->|retry hit cache| SET2
+    end
 ```
 
 ## Capacity Math
