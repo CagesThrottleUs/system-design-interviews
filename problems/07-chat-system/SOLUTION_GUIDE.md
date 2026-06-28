@@ -16,59 +16,82 @@
              [History API]    [Group Delivery Workers]
 ```
 
-## Architecture Diagram (ASCII)
+## Architecture Diagram
+
+```mermaid
+flowchart LR
+    subgraph Clients["Clients"]
+        A([Alice\nDevice])
+        B([Bob\nDevice])
+        G([Group\nMembers])
+    end
+
+    subgraph Servers["Chat Servers (consistent hash ring)"]
+        CSA["Chat Server A\n(Alice's node)"]
+        CSB["Chat Server B\n(Bob's node)"]
+        CSN["Chat Server N\n(member nodes)"]
+    end
+
+    subgraph Storage["Storage & Routing"]
+        MS[("Message Store\nCassandra\nconv_id + msg_id")]
+        PS[("User Presence\nRedis\nuserId → serverId\nTTL 60s)")]
+        GS[("Group Members\nPostgreSQL")]
+    end
+
+    subgraph AsyncPath["Async: Group Fan-out & Offline"]
+        KF["Kafka\ngroup:{group_id}"]
+        FW["Fan-out\nWorkers"]
+        PN([APNs / FCM\nPush Service])
+        MQ[("Offline Queue\nper user")]
+    end
+
+    A -->|WebSocket send| CSA
+    CSA -->|1 write first| MS
+    CSA -->|2 lookup recipient| PS
+    PS -->|serverId = B| CSA
+    CSA -->|3 internal gRPC| CSB
+    CSB -->|4 WebSocket push| B
+    B -->|ACK delivered| CSA
+    A -->|history request| MS
+
+    CSA -->|group message\nwrite first| MS
+    CSA -->|publish| KF
+    KF --> FW
+    FW -->|lookup members| GS
+    FW -->|online: route| CSN
+    CSN -->|WebSocket push| G
+    FW -->|offline member| PN
+    PS -->|TTL expired = offline| FW
+    CSA -->|offline 1:1| MQ
+    MQ -->|reconnect\ndeliver| CSB
 ```
-1:1 ONLINE MESSAGE FLOW:
-Alice (on Server A)                           Bob (on Server B)
-    │                                               │
-    │ "Hello" via WebSocket                         │
-    ▼                                               │
-[Chat Server A]                                     │
-    │                                               │
-    ├─ 1. Write to Cassandra (message_store)        │
-    │     row: (conv_id, msg_id, "Hello", ts)       │
-    │                                               │
-    ├─ 2. Lookup Bob's server: Server B             │
-    │     (via User Presence Service / Redis)       │
-    │                                               │
-    ├─ 3. Send to Server B via internal gRPC        │
-    │                                         ┌─────┘
-    │                                   [Chat Server B]
-    │                                         │
-    │                                         ├─ 4. Push to Bob's WebSocket
-    │                                         │
-    │◄────────── ack: delivered ──────────────┤
-    │                                         │
-    ▼                                         │
-Alice sees ✓✓ (delivered)               Bob sees message
-    │                                         │
-    │                                   Bob opens message
-    │◄────────── ack: read ───────────────────┤
-Alice sees ✓✓ (blue = read)
 
+## Sequence Diagram: Message Delivery (1:1)
 
-1:1 OFFLINE MESSAGE FLOW:
-[Chat Server A]
-    ├─ 1. Write to Cassandra
-    ├─ 2. Lookup Bob: OFFLINE (no server registered)
-    └─ 3. Enqueue push notification via APNs/FCM
-         → APNs/FCM delivers to Bob's device
-         → Bob opens app → WebSocket established
-         → App requests messages since last_ack
-         → Server streams missed messages
-         → App sends "delivered" ack
+```mermaid
+sequenceDiagram
+    participant Alice
+    participant ChatServerA as Chat Server A
+    participant Cassandra
+    participant Presence as Presence Service (Redis)
+    participant ChatServerB as Chat Server B
+    participant Bob
 
-
-GROUP CHAT FAN-OUT (50 members):
-[Chat Server A] receives group message from Alice
-    ├─ 1. Write to Cassandra (group message)
-    ├─ 2. Publish to Kafka topic: "group:{group_id}"
-    │
-[Fan-Out Workers] (consumer group)
-    ├─ Read group member list from Group Service
-    ├─ For each member:
-    │    ├─ Online: send via their Chat Server
-    │    └─ Offline: push notification via APNs/FCM
+    Alice->>ChatServerA: send "Hello" (WebSocket frame, client_msg_id=uuid)
+    ChatServerA->>Cassandra: INSERT (conv_id, msg_id, "Hello", ts)
+    Cassandra-->>ChatServerA: write ACK (quorum)
+    ChatServerA->>Presence: GET presence:bob
+    Presence-->>ChatServerA: {server_id: "chat-server-B", last_seen: ...}
+    ChatServerA->>ChatServerB: gRPC ForwardMessage(msg_id, conv_id, bob)
+    ChatServerB->>Bob: WebSocket push {type:"message", msg_id, content:"Hello"}
+    Bob-->>ChatServerB: ACK {type:"receipt", status:"delivered"}
+    ChatServerB-->>ChatServerA: delivery confirmed
+    ChatServerA-->>Alice: {type:"receipt", msg_id, status:"delivered"}
+    Note over Alice: shows ✓✓ delivered
+    Bob->>ChatServerB: opens message
+    ChatServerB-->>ChatServerA: {type:"receipt", status:"read"}
+    ChatServerA-->>Alice: {type:"receipt", msg_id, status:"read"}
+    Note over Alice: shows ✓✓ blue = read
 ```
 
 ## Capacity Math
