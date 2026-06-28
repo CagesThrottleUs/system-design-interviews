@@ -19,74 +19,81 @@
                      cursor positions)
 ```
 
-## Architecture Diagram (ASCII)
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["Client Layer (each editor)"]
+        UA([User A\nBrowser])
+        CRDT_A["Local CRDT\nstate\n(instant 0ms apply)"]
+        PQ["Pending Op\nQueue\n(unacked ops)"]
+
+        UA -->|keystroke| CRDT_A
+        CRDT_A -->|op queued| PQ
+    end
+
+    subgraph ServerLayer["Server Layer"]
+        WG["WebSocket\nGateway\n(5 nodes, 100K conn each)"]
+        OS["Operation\nServer\n(broadcast + persist)"]
+        OL[("Operation Log\nCassandra\ndoc_id + server_revision")]
+        PR["Presence\nService\n(Redis pub/sub\nper doc channel)"]
+        META[("Document\nMetadata\nPostgreSQL\ntitle / permissions")]
+    end
+
+    subgraph SnapshotLayer["Background: Snapshot Service"]
+        SS["Snapshot\nWorker\n(every 1000 ops)"]
+        S3[("Snapshots\nS3\ndoc_id/revision.json")]
+        SPG[("Snapshot Index\nPostgreSQL\ndoc_id → s3_key)")]
+
+        SS -->|replay op log\n→ full doc state| S3
+        SS -->|update index| SPG
+    end
+
+    PQ -->|WebSocket send op+revision| WG
+    WG --> OS
+    OS -->|persist op, sync| OL
+    OS -->|broadcast to\nall other editors| WG
+    WG -->|remote_op frame| UA
+
+    UA -->|cursor position\n500ms heartbeat| PR
+    PR -->|presence_update\nbroadcast| WG
+
+    OS -.->|every 1000 ops\ntrigger| SS
+    OL -.->|read op range| SS
+
+    UA -->|cold start:\nGET /documents/:id| META
+    META -->|doc metadata| UA
+    SPG -->|nearest snapshot\n+ delta ops| UA
 ```
-ONLINE COLLABORATION FLOW:
 
-Alice types "X" at position 5:
-  Alice's browser
-    │
-    ├─ 1. Apply op locally (immediate — 0ms)
-    │     local state: "Hello Xworld"
-    │
-    ├─ 2. Send op to server: {type:"insert", pos:5, char:"X", client_id:"alice", rev:42}
-    │
-    └──► [Operation Server]
-              │
-              ├─ 3. Check: any concurrent ops from other clients at rev >= 42?
-              │
-              ├─ Case A (no concurrent ops): accept as-is
-              │     Persist to Cassandra op_log
-              │     Assign server revision 43
-              │     Broadcast to all editors in document room
-              │
-              └─ Case B (Bob sent op at same revision):
-                    OT: Transform Alice's op against Bob's op
-                    (if Bob inserted at pos 3 before Alice's pos 5,
-                     Alice's position shifts to pos 6)
-                    Persist transformed op
-                    Broadcast transformed ops to all clients
+## Sequence Diagram: Concurrent Edit Resolution
 
-Bob receives Alice's op (possibly transformed):
-  Bob's browser
-    ├─ Apply op to Bob's local state
-    └─ Both Alice and Bob now have identical document state ✓
+```mermaid
+sequenceDiagram
+    participant UserA as User A (Browser)
+    participant UserB as User B (Browser)
+    participant OpServer as Operation Server
+    participant Cassandra
 
+    Note over UserA,UserB: Both see doc at rev=50, text "Hello world"
 
-OFFLINE RECONNECT FLOW:
+    UserA->>UserA: type "X" at pos 5 → apply locally (0ms)\nCRDT: char(alice,51) after char(doc,5)
+    UserB->>UserB: type "Y" at pos 5 → apply locally (0ms)\nCRDT: char(bob,51) after char(doc,5)
 
-Charlie was offline for 60 seconds, made edits {op_a, op_b, op_c} locally.
-Server has received edits {op_x, op_y, op_z} from others during that time.
+    UserA->>OpServer: op {insert, parent=(doc,5), id=(alice,51), rev=50}
+    UserB->>OpServer: op {insert, parent=(doc,5), id=(bob,51), rev=50}
 
-Charlie reconnects:
-  1. Charlie sends: {client_id, last_known_server_rev: 55, ops: [op_a, op_b, op_c]}
-  2. Server fetches ops 56-current from Cassandra op_log
-  3. Server transforms Charlie's ops against the server ops
-     (OT: transform each of op_a, op_b, op_c against op_x, op_y, op_z)
-  4. Apply transformed Charlie ops to document
-  5. Send Charlie the server ops (56-current) + transformation context
-  6. Charlie applies server ops (transformed against his ops) to his local state
-  7. Convergence: Charlie's state === Server state ✓
+    OpServer->>Cassandra: persist op (alice,51) → server_rev=51
+    OpServer->>Cassandra: persist op (bob,51) → server_rev=52
 
+    OpServer-->>UserB: remote_op {insert, id=(alice,51), parent=(doc,5), rev=51}
+    OpServer-->>UserA: remote_op {insert, id=(bob,51), parent=(doc,5), rev=52}
 
-CRDT ALTERNATIVE (no server-side transformation needed):
+    Note over UserA: CRDT merge: same parent (doc,5)\ntie-break by client_id: alice < bob\norder: (doc,5)→(alice,51:X)→(bob,51:Y)\nresult: "Hello XYworld"
 
-Each character has a globally unique ID: (client_id, local_sequence, parent_id)
-Position is determined by parent-child relationships, not integer indices.
+    Note over UserB: CRDT merge: same parent (doc,5)\nsame tie-break rule\norder: (doc,5)→(alice,51:X)→(bob,51:Y)\nresult: "Hello XYworld"
 
-Alice inserts "X" with id=(alice,42) after character with id=(doc,5):
-  Local: ...[doc,5] → [alice,42:X] → [doc,6]...
-
-Bob simultaneously inserts "Y" with id=(bob,17) after character id=(doc,5):
-  Local: ...[doc,5] → [bob,17:Y] → [doc,6]...
-
-After merge (both ops applied to both clients):
-  Merged: ...[doc,5] → [alice,42:X] → [bob,17:Y] → [doc,6]...
-  (or [bob,17:Y] → [alice,42:X] depending on tie-breaking rule)
-
-Key property: order determined by ID comparison, not position.
-No server-side transformation needed. Both clients apply both ops and
-arrive at identical state deterministically.
+    Note over UserA,UserB: Both clients converge to identical state ✓\nNo server-side transformation needed
 ```
 
 ## Capacity Math
