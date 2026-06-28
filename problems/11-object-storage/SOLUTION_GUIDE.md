@@ -21,67 +21,60 @@ Read after your attempt. If you haven't attempted yet, close this file.
 
 ## Architecture Diagram
 
+```mermaid
+flowchart LR
+    Client([Client])
+
+    subgraph Control["Control Layer"]
+        API[API Service\nstateless]
+        Placement[Placement Service\nin-memory]
+    end
+
+    subgraph MetadataLayer["Metadata Layer"]
+        MetaDB[(Metadata DB\nMySQL sharded)]
+    end
+
+    subgraph DataLayer["Data Layer"]
+        DS[Data Store Service]
+        NodeA[(Data Node A\nAZ-1)]
+        NodeB[(Data Node B\nAZ-1)]
+        NodeC[(Data Node C\nAZ-2)]
+        NodeD[(Data Node D\nAZ-3 parity)]
+        NodeE[(Data Node E\nAZ-3 parity)]
+    end
+
+    %% Upload path
+    Client -->|PUT bucket/key| API
+    API -->|write metadata| MetaDB
+    API -->|get node placement| Placement
+    Placement -->|rack-aware nodes| DS
+    DS -->|shard 0| NodeA
+    DS -->|shard 1| NodeB
+    DS -->|shard 2| NodeC
+    DS -.->|parity shard| NodeD
+    DS -.->|parity shard| NodeE
+    DS -->|success| API
+    API -->|200 etag| Client
+
+    %% Download path
+    Client -->|GET bucket/key| API
+    API -->|lookup chunk locations| MetaDB
+    MetaDB -->|object_id + node list| API
+    API -->|fetch chunks parallel| NodeA
+    API -->|fetch chunks parallel| NodeB
+    API -->|fetch chunks parallel| NodeC
+    NodeA -->|reassemble| API
+    NodeB -->|reassemble| API
+    NodeC -->|reassemble| API
+    API -->|stream bytes| Client
+
+    %% Pre-signed URL fast path
+    Client -->|POST /presign| API
+    API -->|HMAC-signed URL + TTL| Client
+    Client -->|PUT directly with token\nno API in data path| DS
 ```
-WRITE PATH (upload)
-───────────────────────────────────────────────────────────────
 
-  Client
-    │  PUT /bucket/key (large file)
-    ▼
-┌────────────────┐
-│   API Service  │
-│  (stateless)   │
-└────────────────┘
-    │                               │
-    │  1. Write metadata record     │  2. Get placement (which nodes)
-    ▼                               ▼
-┌────────────────┐         ┌─────────────────┐
-│ Metadata DB    │         │ Placement Service│
-│ (MySQL sharded)│         │ (in-memory)      │
-└────────────────┘         └─────────────────┘
-                                    │
-                 3. Stream chunks in parallel
-                    ┌───────────────┼───────────────┐
-                    ▼               ▼               ▼
-               ┌────────┐     ┌────────┐     ┌────────┐
-               │Data    │     │Data    │     │Data    │
-               │Node A  │     │Node B  │     │Node C  │
-               │(AZ-1)  │     │(AZ-1)  │     │(AZ-2)  │
-               └────────┘     └────────┘     └────────┘
-                (shard 0)     (shard 1)      (shard 2)
-                            + parity shards on Nodes D, E (AZ-3)
-
-
-READ PATH (download)
-───────────────────────────────────────────────────────────────
-
-  Client
-    │  GET /bucket/key
-    ▼
-┌────────────────┐
-│   API Service  │  ──▶  Metadata DB  ──▶  chunk locations
-└────────────────┘
-    │
-    │  Fetch chunks in parallel from data nodes
-    │  (or redirect to pre-signed data node URL)
-    ▼
-  Reassemble → stream to client
-
-
-PRE-SIGNED URL FLOW (direct upload, bypass app servers)
-───────────────────────────────────────────────────────────────
-
-  Client App                API Service              S3 / Data Nodes
-    │  POST /presign             │                         │
-    │ ─────────────────────────▶│                         │
-    │                           │  Generate HMAC token    │
-    │  Returns presigned URL    │                         │
-    │ ◀─────────────────────────│                         │
-    │                           │                         │
-    │  PUT directly with token  │                         │
-    │ ────────────────────────────────────────────────────▶
-    │                           │   App never sees bytes  │
-```
+**Pre-signed URL fast path:** client requests a time-limited HMAC-signed URL from the API Service; the API never proxies the upload bytes — the client writes directly to the Data Store. This eliminates the API tier as a bandwidth bottleneck (otherwise: 580 writes/sec × 1 MB = 580 MB/sec through app servers at average load).
 
 ---
 
