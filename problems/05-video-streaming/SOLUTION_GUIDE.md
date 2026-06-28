@@ -21,94 +21,55 @@
 
 ## Architecture Diagram
 
-```
-═══════════════════════════════════════════════════════════════════
-                        UPLOAD PATH
-═══════════════════════════════════════════════════════════════════
+```mermaid
+flowchart LR
+    Creator([Creator])
+    UploadSvc[Upload Service\nchunked resumable HTTP]
+    RawBlob[(Raw Video\nBlob Storage S3)]
+    TxQueue[[Transcoding Queue\nSQS / Kafka]]
+    MetadataDB[(Metadata DB\nPostgreSQL)]
+    SearchIndex[Search Index\nElasticsearch]
 
-   Creator
-     │
-     │  POST /upload (chunked, resumable)
-     ▼
- ┌──────────────┐
- │ Upload       │  1. Validate auth + file type
- │ Service      │  2. Write raw chunks → Blob Storage
- │              │  3. Assemble multipart object
- └──────┬───────┘  4. Enqueue transcoding job
-        │
-        │  publish job {video_id, source_blob_path}
-        ▼
- ┌──────────────┐
- │ Transcoding  │  (SQS / Kafka — durable, at-least-once)
- │ Queue        │
- └──────┬───────┘
-        │  consume job (competing consumers)
-        ▼
- ┌──────────────────────────────────────────────┐
- │          Transcoding Worker Pool             │
- │                                              │
- │  For each rendition (240p, 360p, 480p,       │
- │  720p, 1080p, 4K) × bitrate variant:        │
- │    1. Read source from Blob Storage          │
- │    2. FFmpeg encode → output segment files   │
- │    3. Write rendition segments → Blob Store  │
- │    4. Generate HLS (.m3u8) / DASH (.mpd)     │
- │       manifest per rendition                 │
- │    5. Generate master manifest pointing      │
- │       to all renditions                      │
- └──────┬───────────────────────────────────────┘
-        │
-        │  write manifests + renditions
-        ▼
- ┌──────────────┐        ┌──────────────┐
- │ Blob Storage │        │ Metadata DB  │
- │ (renditions  │        │ (status →    │
- │  + manifests)│        │  READY,      │
- └──────┬───────┘        │  manifest    │
-        │                │  URLs)       │
-        │                └──────────────┘
-        │  CDN pull / push
-        ▼
- ┌──────────────┐
- │ CDN Edge     │  Pre-positioned at ISP locations
- │ Nodes        │  (Open Connect model)
- └──────────────┘
+    subgraph "Transcoding Pipeline"
+        TxWorkers[Transcoding Workers\nFFmpeg fleet · one job per rendition]
+        Renditions[(Rendition Segments\nBlob Storage S3\n240p · 720p · 1080p · 4K)]
+        Manifests[(HLS/DASH Manifests\nm3u8 · mpd · master manifest)]
+    end
 
+    subgraph "Delivery Layer"
+        CDNOrigin[(CDN Origin\nS3 renditions + manifests)]
+        CDNEdge([CDN Edge Nodes\nnear-ISP · Open Connect model])
+    end
 
-═══════════════════════════════════════════════════════════════════
-                       PLAYBACK PATH
-═══════════════════════════════════════════════════════════════════
+    Creator -->|POST /upload chunks| UploadSvc
+    UploadSvc -->|store raw| RawBlob
+    UploadSvc -->|enqueue job per rendition| TxQueue
+    UploadSvc -->|status=processing| MetadataDB
+    MetadataDB -.->|async index| SearchIndex
 
-   Viewer
-     │
-     │  GET /video/{video_id}/manifest
-     ▼
- ┌──────────────┐        ┌──────────────┐
- │ Video API    │───────▶│ Metadata DB  │
- │ (+ Cache)    │        │ + Redis      │
- └──────┬───────┘        └──────────────┘
-        │
-        │  returns: CDN URL for master manifest
-        ▼
- ┌──────────────┐
- │ CDN Edge     │  Viewer's DNS resolves to nearest edge
- │ (nearest)    │  Edge serves manifest (cached or pull from origin)
- └──────┬───────┘
-        │
-        │  returns: master manifest (.m3u8 / .mpd)
-        │  listing all renditions + segment URLs
-        ▼
- ┌──────────────┐
- │ ABR Player   │  Measures download speed every segment (~2-10s)
- │ (client)     │  Selects rendition: 240p on 2G, 4K on fiber
- └──────┬───────┘
-        │
-        │  GET /chunk/{rendition}/{segment_N}.ts (or .m4s)
-        ▼
- ┌──────────────┐
- │ CDN Edge     │  Cache hit → serves immediately
- │ (same edge)  │  Cache miss → pulls from Blob Storage origin
- └──────────────┘
+    TxQueue -->|consume job| TxWorkers
+    TxWorkers -->|read source| RawBlob
+    TxWorkers -->|write segments| Renditions
+    TxWorkers -->|write manifests| Manifests
+    TxWorkers -->|status=ready + manifest URLs| MetadataDB
+
+    Renditions --> CDNOrigin
+    Manifests --> CDNOrigin
+    CDNOrigin -->|pull / pre-push hot content| CDNEdge
+
+    Viewer([Viewer])
+    VideoAPI[Video API\n+ Redis Cache]
+    ABRPlayer[ABR Player\nbandwidth measurement per segment]
+
+    subgraph "Playback Path"
+        Viewer -->|GET /video/manifest| VideoAPI
+        VideoAPI -->|lookup manifest URL| MetadataDB
+        VideoAPI -->|CDN URL for master manifest| ABRPlayer
+        ABRPlayer -->|fetch master manifest| CDNEdge
+        CDNEdge -->|cache miss| CDNOrigin
+        ABRPlayer -->|select rendition by bandwidth| CDNEdge
+        CDNEdge -->|serve segment .ts / .m4s| ABRPlayer
+    end
 ```
 
 ---
