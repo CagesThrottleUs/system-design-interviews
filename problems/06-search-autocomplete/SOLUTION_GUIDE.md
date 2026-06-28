@@ -22,36 +22,51 @@
                           (every user query logged)
 ```
 
-## Architecture Diagram (ASCII)
-```
-User Types "iph"
-       │
-       ▼
-   Browser JS
-  (debounce 150ms)
-       │
-       ▼
-   CDN Edge ──────► CACHE HIT → return ["iphone 15","iphone charger","iphone case",...]
-       │ MISS
-       ▼
-  Autocomplete
-    Service
-       │
-       ├──► Redis ZSET "iph" ──► CACHE HIT (TTL 10min) → return top 5
-       │         MISS
-       ├──► Prefix Index (sharded by prefix hash)
-       │         └──► return top-5 by score
-       │
-       └──► Blocklist Filter → strip banned completions
-       │
-       ▼
-   Response (JSON array, ~200 bytes)
+## Architecture Diagram
 
+```mermaid
+flowchart TD
+    subgraph ReadPath["Read Path"]
+        U([User Browser])
+        BCache["Browser\nLocal Cache\n(last N prefixes)"]
+        DB["Debounce\n150ms"]
+        CDN["CDN Edge\n(popular prefixes)"]
+        AG["API Gateway\n/ Load Balancer"]
+        AS["Autocomplete\nService\n(stateless)"]
+        RC[("Redis ZSET\ncache\nTTL 10 min")]
+        PI[("Prefix Index\nSharded Trie\nby prefix range")]
+        BL["Blocklist\nFilter"]
 
-WRITE PATH (async, offline):
-User submits search → Kafka log → Spark aggregation (hourly) →
-Top-K recomputation (daily) → Trie Builder writes new prefix index →
-Redis TTLs expire → fresh completions visible
+        U -->|keystroke| BCache
+        BCache -->|cache miss| DB
+        DB -->|debounced request| CDN
+        CDN -->|cache miss| AG
+        AG --> AS
+        AS -->|check cache| RC
+        RC -->|cache hit| AS
+        RC -->|cache miss| PI
+        PI -->|top-K by score| AS
+        AS -->|filter| BL
+        BL -->|top-K suggestions| U
+        RC -->|cache hit fast path| U
+        CDN -->|cache hit| U
+    end
+
+    subgraph WritePath["Async Write Path (offline)"]
+        SL[("Search Log\nKafka stream")]
+        SP["Spark / Flink\naggregation\nhourly"]
+        TB["Trie Builder\ndaily batch"]
+        ZK["ZooKeeper\natomic swap"]
+        PI2[("Prefix Index\nnew version")]
+
+        SL -->|query submitted| SP
+        SP -->|aggregated\nfrequencies| TB
+        TB -->|write new\nprefix index| PI2
+        PI2 -->|atomic version\nswap signal| ZK
+        ZK -->|all Trie nodes\npick up new version| PI2
+    end
+
+    AS -.->|write frequency\nlog| SL
 ```
 
 ## Capacity Math
