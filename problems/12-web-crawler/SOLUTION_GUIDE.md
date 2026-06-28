@@ -22,65 +22,54 @@ Read after your attempt. If you haven't attempted yet, close this file.
 
 ## Architecture Diagram
 
-```
-                         ┌─────────────────────────────────────────┐
-                         │            URL FRONTIER                  │
-                         │                                          │
-                         │  Front Queues (priority tiers)           │
-                         │  [HIGH] ─────────────────────┐           │
-                         │  [MED]  ──────────────────────┤  Selector│
-                         │  [LOW]  ──────────────────────┤  Policy  │
-                         │                               │          │
-                         │  Back Queues (one per domain) │          │
-                         │  [example.com] ◀──────────────┘          │
-                         │  [github.com]                            │
-                         │  [news.ycombinator.com]                  │
-                         └────────────────┬────────────────────────┘
-                                          │ next URL to crawl
-                                          ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                        FETCHER WORKER POOL                           │
-│                                                                      │
-│  1. Check robots.txt cache ──▶ Redis (robots.txt TTL: 24h)          │
-│         (miss) ──▶ fetch robots.txt from domain                     │
-│                                                                      │
-│  2. DNS resolution ──────────▶ In-process LRU cache                 │
-│         (miss) ──▶ upstream DNS (50-120 ms, cached after)           │
-│                                                                      │
-│  3. HTTP GET ─────────────────────────────────────────────────────▶ Web
-│         ← 200 HTML, 301/302 redirect, 429/503 (back off), timeout    │
-│                                                                      │
-│  4. HTML parse + link extract                                        │
-│                                                                      │
-│  5. For each extracted URL:                                          │
-│        Normalize → Check Bloom filter → (new) enqueue to Frontier   │
-└────────────────────────────────┬───────────────────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    ▼                         ▼
-         ┌──────────────────┐      ┌─────────────────────┐
-         │   Content Store  │      │   Bloom Filter       │
-         │   S3 (raw HTML)  │      │   Redis (seen URLs)  │
-         │   PG (metadata)  │      │   ~1.2 GB / 1B URLs  │
-         └──────────────────┘      └─────────────────────┘
-                    │
-                    ▼
-         ┌──────────────────┐
-         │  Index Consumer  │
-         │  (downstream)    │
-         └──────────────────┘
+```mermaid
+flowchart TD
+    Seeds([Seed URLs])
 
+    subgraph Frontier["URL Frontier"]
+        PQ[Priority Queues\nHIGH / MED / LOW tiers]
+        Selector{Selector Policy\nbiased random walk}
+        BQ[Back Queues\none per domain\nrespects crawl-delay]
+        PQ -->|pick priority tier| Selector
+        Selector -->|route to domain queue| BQ
+    end
 
-DISTRIBUTED CRAWLING (multiple workers):
+    subgraph Optimizations["Side Optimizations"]
+        DNSCache[DNS Cache\nin-process LRU\n50-120ms → 1-5ms]
+        RobotsCache[(robots.txt Cache\nRedis TTL 24h)]
+    end
 
-  URL frontier shards by domain hash (consistent hashing)
-  Worker 1 owns: example.com, github.com, ...
-  Worker 2 owns: nytimes.com, reddit.com, ...
-  Worker 3 owns: wikipedia.org, amazon.com, ...
+    subgraph FetchParse["Fetcher + Parser"]
+        Fetcher[HTTP Fetcher\ngoroutine pool]
+        Parser[HTML Parser\nlibxml2]
+        Normalizer[URL Normalizer\ncanonical form]
+    end
 
-  Cross-domain links: Worker 1 extracts link to nytimes.com
-                      → route to Worker 2's frontier queue
-                      → Worker 2 checks its own Bloom filter
+    subgraph Storage["Storage"]
+        ContentStore[(Content Store\nS3 raw HTML\nPostgreSQL metadata)]
+        BloomFilter[(Bloom Filter\nRedis seen URLs\n1.2 GB per 1B URLs)]
+        Scorer[URL Scorer\npriority assignment]
+    end
+
+    IndexConsumer[Index Consumer\ndownstream search pipeline]
+    Web([Web])
+
+    Seeds -->|initial enqueue| PQ
+    BQ -->|next URL| Fetcher
+    Fetcher -->|check allowed?| RobotsCache
+    RobotsCache -.->|cache miss: fetch robots.txt| Web
+    Fetcher -->|resolve hostname| DNSCache
+    DNSCache -.->|cache miss: upstream DNS| Web
+    Fetcher -->|HTTP GET| Web
+    Web -->|200 HTML| Parser
+    Parser -->|raw HTML| ContentStore
+    Parser -->|extracted links| Normalizer
+    Normalizer -->|normalized URL| BloomFilter
+    BloomFilter -->|already seen: discard| BloomFilter
+    BloomFilter -->|new URL| Scorer
+    Scorer -->|score + enqueue| PQ
+    ContentStore -->|SimHash near-dedup check| ContentStore
+    ContentStore -->|unique content| IndexConsumer
 ```
 
 ---
