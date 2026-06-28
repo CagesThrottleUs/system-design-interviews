@@ -21,100 +21,58 @@ Read after your attempt. If you haven't attempted yet, close this file.
 
 ## Architecture Diagram
 
-```
-INGEST PATH (100K+ events/sec)
-────────────────────────────────────────────────────────────────────
+```mermaid
+flowchart LR
+    AdServer([Ad Server\nMobile App])
 
-  Ad Server / Mobile App
-    │  POST /click { ad_id, user_id, click_id, timestamp, ... }
-    ▼
-┌───────────────────┐
-│  Click Ingestor   │
-│  (stateless)      │
-│                   │  1. Validate schema
-│                   │  2. Check dedup: Redis SETNX click_id TTL=30min
-│                   │     (if exists: discard duplicate)
-│                   │  3. Produce to Kafka: partition key = ad_id (salted)
-└───────────────────┘
+    subgraph Ingest["Ingestion"]
+        Ingestor[Click Ingestor\nstateless]
+        DedupStore[(Dedup Store\nRedis SETNX\nclick_id TTL 30min)]
+    end
 
+    subgraph KafkaBus["Kafka — partition key: ad_id salted"]
+        K[Kafka\n100 partitions\nad_id + random suffix 0-7\nretained 7 days]
+        LateQ[Late Events Topic\nfrom Flink side output]
+    end
 
-KAFKA PARTITIONING (hot partition solution)
-────────────────────────────────────────────
+    subgraph RealTimePipeline["Real-Time Pipeline — serves dashboard"]
+        Flink[Flink Stream Processor\ntumbling window 1-min buckets\nwatermark + 5s grace\nBloom dedup per-shard]
+        AggStore[(Real-Time Aggregates\nClickHouse\nsub-500ms queries)]
+        Dashboard[Campaign Dashboard\napprox counts\nlatency less than 30s]
+    end
 
-  ad_id: "ad_viral_123"  →  ad_viral_123:0, ad_viral_123:1, ..., ad_viral_123:7
-  (salted key = ad_id + random suffix 0-7)
+    subgraph BatchPipeline["Batch Pipeline — serves billing"]
+        S3[(Raw Event Store\nS3 + Parquet\npartitioned by date/hour/ad_id\n7-day retention)]
+        Spark[Spark Batch Job\nnightly\nglobal dedup by click_id\nexact counts]
+        BillingDB[(Billing DB\nPostgreSQL\nexact counts for invoicing)]
+    end
 
-  Kafka partition 0:  [ad_viral_123:0, ad_small_456, ad_rare_789, ...]
-  Kafka partition 1:  [ad_viral_123:1, ad_other_001, ...]
-  ...
-  Kafka partition 7:  [ad_viral_123:7, ...]
-  → viral ad spread across 8 partitions; aggregation sums the 8 partial counts
+    subgraph Serving["Serving Layer — arbitrary range queries"]
+        QuerySvc[Query Service\nstitches buckets:\nday agg + hour agg + minute agg]
+    end
 
+    Reconcile[Reconciliation\nFlink counts vs Spark counts\nnightly diff]
 
-REAL-TIME PATH (latency < 30 seconds)
-────────────────────────────────────────────────────────────────────
+    AdServer -->|POST /click\nad_id user_id click_id timestamp| Ingestor
+    Ingestor -->|SETNX click_id| DedupStore
+    DedupStore -->|duplicate: discard| DedupStore
+    DedupStore -->|new: produce salted ad_id key| K
 
-  Kafka
-    │
-    ▼
-┌───────────────────────────────────────────────────────────────────┐
-│  Flink Stream Processor                                           │
-│                                                                   │
-│  1. Parse event                                                   │
-│  2. Assign event time (use event timestamp, not processing time)  │
-│  3. Apply tumbling window: 1 minute                               │
-│     Window closes when watermark passes window_end + 5s grace     │
-│  4. Group by (ad_id, window_start_minute)                        │
-│  5. Emit: { ad_id, window_start, click_count }                    │
-│                                                                   │
-│  Late events (arrive > 5s after watermark): allowed up to 5 min  │
-│  After 5 min grace: late events go to side output (counted later) │
-└───────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌───────────────────┐     ┌──────────────────────────────────────┐
-│  ClickHouse       │     │  Raw Event Store (S3/Parquet)         │
-│  (aggregation     │     │  Partitioned by: date/hour/ad_id      │
-│   store)          │     │  Retention: 30 days                   │
-└───────────────────┘     └──────────────────────────────────────┘
-    │ (sub-500ms queries)              │
-    ▼                                  ▼
-Campaign Dashboard            Batch processor for billing
-                              (Spark job, runs daily)
+    K -->|consume: real-time| Flink
+    K -->|consume: write all events| S3
 
+    Flink -->|1-min window results| AggStore
+    Flink -.->|events past 5min grace| LateQ
+    LateQ -.->|reprocessed by| Spark
+    AggStore -->|sub-500ms| Dashboard
+    AggStore --> QuerySvc
 
-BATCH PATH (billing accuracy, runs nightly)
-────────────────────────────────────────────────────────────────────
+    S3 -->|yesterday partition| Spark
+    Spark -->|exact counts| BillingDB
+    Spark -.->|compare| Reconcile
+    Flink -.->|compare| Reconcile
 
-  S3 raw events (yesterday's partition)
-    │
-    ▼
-┌───────────────────────────────┐
-│  Spark Batch Job              │
-│                               │
-│  1. Read all raw events       │  exact counts, no approximations
-│  2. Global dedup by click_id  │  longer window than real-time
-│  3. Aggregate by ad_id / day  │
-│  4. Compare with Flink output │
-│  5. Write billing totals to   │
-│     Billing DB (PostgreSQL)   │
-└───────────────────────────────┘
-
-
-SERVING LAYER (arbitrary range queries)
-────────────────────────────────────────
-
-  Client: "clicks for ad_123 from Jan 1 to Jan 15"
-    │
-    ▼
-┌──────────────────┐
-│  Query Service   │
-│                  │  1. Decompose [Jan 1, Jan 15] into pre-agg buckets
-│                  │  2. Query ClickHouse for per-day agg (Jan 1-14)
-│                  │  3. Query ClickHouse for per-hour agg (Jan 15 hours)
-│                  │  4. Query ClickHouse for per-minute agg (current partial)
-│                  │  5. Sum the buckets → return total
-└──────────────────┘
+    QuerySvc -->|merged range result| Dashboard
 ```
 
 ---
